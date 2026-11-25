@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Plotting Koordinat ke Grid</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0b5cab">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+:root{--bg:#e9ebee;--bar:#fff;--ink:#1b1f24;--mut:#5b6570;--acc:#0b5cab;--line:#cfd5db;--warn:#b3261e;--ok:#1b7f3b;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#15181c;--bar:#22272d;--ink:#e8ebee;--mut:#9aa5b1;--acc:#6ab0f5;--line:#3a424b;--warn:#ff8a80;--ok:#7fd99a}}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+body{display:flex;flex-direction:column;overflow:hidden}
+.bar{background:var(--bar);border-bottom:1px solid var(--line);padding:8px 10px;display:flex;flex-direction:column;gap:6px}
+.row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+button,select,input,textarea{font:inherit;font-size:13px;padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--bar);color:var(--ink);box-sizing:border-box}
+button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+label{font-size:12px;color:var(--mut);display:flex;align-items:center;gap:4px}
+#info{font-size:12px;color:var(--mut);line-height:1.35}
+#info b{color:var(--warn);font-weight:600}
+#sv{font-size:12px;color:var(--ok);margin-left:auto}
+#wrap{flex:1;min-height:110px;position:relative;touch-action:none;cursor:grab}
+svg{width:100%;height:100%;display:block}
+#panel{background:var(--bar);border-top:1px solid var(--line);padding:8px 10px;max-height:55%;overflow-y:auto;display:flex;flex-direction:column;gap:8px}
+#panel[hidden],.row[hidden]{display:none}
+#paste{width:100%;height:52px;font-size:12px;font-family:ui-monospace,Menlo,monospace}
+.li{display:grid;grid-template-columns:1.3fr 1fr 1fr .8fr 78px 30px;gap:4px}
+.li select{width:100%;min-width:0;padding:5px 2px;font-size:12px}
+.ty{border:1px solid var(--line);border-radius:8px;padding:6px;display:flex;flex-direction:column;gap:5px}
+.ty .r{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.ty input[type=text],.ty input[type=number]{padding:5px 6px;font-size:12px}
+.li input{width:100%;min-width:0;padding:5px 6px;font-size:12px}
+.li button{padding:5px 0;font-size:12px}
+.h{font-size:11px;color:var(--mut)}
+.sec{font-size:12px;font-weight:600}
+#msg{font-size:12px;color:var(--mut)}
+#msg.err{color:var(--warn)}
+.fb{position:relative;overflow:hidden;display:inline-block;padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;color:var(--ink);background:var(--bar);cursor:pointer}button:disabled{opacity:.4}
+input[type=color]{width:36px;height:30px;padding:2px;cursor:pointer}
+.ln{display:grid;grid-template-columns:36px 1fr auto 30px;gap:6px;align-items:center}
+.ln span{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fb input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer;font-size:0;padding:0;border:0}
+</style>
+</head>
+<body>
+<div class="bar">
+  <div class="row" id="steps"></div>
+  <div class="row">
+    <button id="undo" disabled>↶ Undo</button><button id="redo" disabled>↷ Redo</button>
+    <button id="dbtn">Data koordinat</button>
+    <label>Skala 1:<select id="sc"><option value="auto">Auto</option><option>200</option><option selected>250</option><option>300</option><option>500</option><option>1000</option></select></label>
+    <label><input type="checkbox" id="boost"> Tebalkan tampilan</label>
+    <label><input type="checkbox" id="cont"> Kontur</label>
+    <button id="fit">Fit</button>
+    <button id="xbtn">Simpan file</button>
+    <span id="sv"></span>
+  </div>
+  <div class="row" id="xrow" hidden><button id="xpdf">PDF</button><button id="xpng">Foto PNG (tahap aktif)</button><span class="h">Simpan foto:</span><button id="xp1">1 Layout</button><button id="xp2">2 Grid bantu</button><button id="xp3">3 Plot titik</button><button id="xp4">4 Final</button><button id="xp5">5 Sambung</button><button id="xpall">Semua 1-5</button><button id="xhtml">HTML interaktif</button><span class="h">Data:</span><button id="xcsv">Koordinat saja (CSV)</button><button id="xjson">Proyek lengkap (JSON)</button><label class="fb">Buka proyek (JSON)<input type="file" id="fjson" accept=".json,application/json"></label><span id="xm" class="h"></span></div>
+  <div id="info"></div>
+</div>
+<div id="wrap"><svg id="s" xmlns="http://www.w3.org/2000/svg"><g id="g"></g></svg></div>
+<div id="panel" hidden>
+  <div class="sec">1. Ketik koordinat</div>
+  <div class="li" style="grid-template-columns:1.3fr 1fr 1fr .8fr auto"><input id="an" placeholder="Nama"><input id="ax" placeholder="X (E)" inputmode="decimal"><input id="ay" placeholder="Y (N)" inputmode="decimal"><input id="az" placeholder="Z" inputmode="decimal"><button id="add">Tambah</button></div>
+  <select id="at"></select>
+  <div class="row"><button id="sortaz">Urutkan nama A→Z</button><button id="sortza">Z→A</button></div>
+  <div class="sec">2. Upload tabel (screenshot, Excel, CSV)</div>
+  <div class="row">
+    <label class="fb">Foto / screenshot<input type="file" id="fimg" accept="image/*"></label><label class="fb">Excel / CSV<input type="file" id="ffile" accept=".xlsx,.xls,.csv,.tsv,.txt"></label>
+    <select id="mode"><option value="replace">Ganti semua data</option><option value="append">Tambahkan ke data</option></select>
+  </div>
+  <div id="msg"></div>
+  <div class="sec">3. Atau tempel dari spreadsheet</div>
+  <textarea id="paste" placeholder="Nama, X, Y, Z (Z opsional) per baris. Pisah dengan tab, titik koma, atau koma"></textarea>
+  <div class="row"><button id="addp" class="on">+ Tambah tempelan (data lama tetap)</button><button id="apply">Ganti semua dengan tempelan</button><button id="reset">Data contoh</button><button id="clear">Kosongkan</button></div>
+  <div class="sec">4. Jenis titik (tambah sebanyak-banyaknya)</div>
+  <div id="tlist"></div>
+  <div class="row"><button id="tadd">+ Tambah jenis</button><button id="tre">Cek ulang jenis dari nama titik</button></div>
+  <div class="h">Awalan nama: titik yang namanya diawali kata itu otomatis masuk jenis ini (pisah koma, contoh: BM, TK). “Sambung” menggaris semua titik sejenis (garis ini hanya tampil di tahap 5 Sambung), “Tutup” menyambung balik ke titik awal, “Kontrol” dipakai menentukan titik tengah peta.</div>
+  <div class="sec">5. Garis hubung antar titik</div>
+  <div class="row"><button id="lnew">Mulai sambung titik</button><label>Warna <input type="color" id="lcol" value="#e0301e"></label><label><input type="checkbox" id="lclose"> Tutup (kembali ke titik awal)</label><button id="lcancel" hidden>Batal</button></div>
+  <div class="row" id="lpick" hidden><select id="lsel"></select><button id="ladd">+ Titik</button><button id="lback">Hapus titik terakhir</button></div>
+  <div class="h" id="lhint"></div>
+  <div id="llist"></div>
+  <div class="sec">6. Kontur (dari kolom Z)</div>
+  <div class="row"><label>Interval <input id="ci" value="1" inputmode="decimal" style="width:52px"> m</label><label>Indeks tiap <input id="cx" value="5" inputmode="numeric" style="width:42px"> garis</label><label>Warna <input type="color" id="ccol" value="#a0522d"></label></div>
+  <div class="row"><label><input type="checkbox" id="csm" checked> Haluskan garis</label><label>Maks. jarak titik <input id="cmax" placeholder="bebas" inputmode="decimal" style="width:56px"> m</label><label><input type="checkbox" id="zlab"> Tampilkan Z di label titik</label></div>
+  <div class="h">Isi kolom Z (elevasi) tiap titik, lalu centang “Kontur” di atas. Kontur dibuat dari jaring segitiga antar titik, butuh minimal 3 titik ber-Z. Isi “Maks. jarak titik” untuk membuang segitiga panjang di tepi sebaran titik.</div>
+  <div class="h">Jenis titik otomatis dari awalan nama (atur di bagian Jenis titik) dan bisa diganti lewat kolom Jenis. Semua perubahan tersimpan otomatis.</div>
+  <div class="row"><button id="selall">Pilih semua</button><button id="selnone">Batal pilih</button><button id="seldel" disabled>Hapus terpilih (0)</button></div>
+  <div class="li h" style="grid-template-columns:22px 1.3fr 1fr 1fr .8fr 78px 30px"><span></span><span>Nama</span><span>X (E)</span><span>Y (N)</span><span>Z</span><span>Jenis</span><span></span></div>
+  <div id="list"></div>
+</div>
+<script>window.__INIT={"boost": false, "ccol": "#a0522d", "ci": "1", "cmax": "", "cont": false, "csm": true, "cx": "5", "lines": "[]", "rows": "[{\"n\":\"1\",\"x\":\"1043.033885\",\"y\":\"987.6414268\",\"z\":\"\",\"t\":\"pmwvzamuvo59t\",\"id\":\"pmwvz7lo75l09\"},{\"n\":\"2\",\"x\":\"1024.078526\",\"y\":\"980.6616084\",\"z\":\"\",\"t\":\"pmwvz7xsmi9ot\",\"id\":\"pmwvz7lo76cjk\"},{\"n\":\"3\",\"x\":\"1021.56946\",\"y\":\"976.4440227\",\"z\":\"\",\"t\":\"pmwvz7xsmi9ot\",\"id\":\"pmwvz7lo77vas\"},{\"n\":\"4\",\"x\":\"1020.109621\",\"y\":\"969.294915\",\"z\":\"\",\"t\":\"pmwvz7xsmi9ot\",\"id\":\"pmwvz7lo78ebn\"},{\"n\":\"5\",\"x\":\"1035.911022\",\"y\":\"985.4948177\",\"z\":\"\",\"t\":\"T\",\"id\":\"pmwvz7lo796av\"},{\"n\":\"6\",\"x\":\"1031.543972\",\"y\":\"976.299155\",\"z\":\"\",\"t\":\"T\",\"id\":\"pmwvz7lo7a89t\"},{\"n\":\"7\",\"x\":\"1030.159614\",\"y\":\"970.3592372\",\"z\":\"\",\"t\":\"T\",\"id\":\"pmwvz7lo7bntb\"},{\"n\":\"8\",\"x\":\"1019.692738\",\"y\":\"967.0966835\",\"z\":\"\",\"t\":\"T\",\"id\":\"pmwvz7lo7cbkg\"},{\"n\":\"9\",\"x\":\"1019.268356\",\"y\":\"958.0720514\",\"z\":\"\",\"t\":\"T\",\"id\":\"pmwvz7lo7dfh9\"},{\"n\":\"10\",\"x\":\"1018.541995\",\"y\":\"955.0992691\",\"z\":\"\",\"t\":\"T\",\"id\":\"pmwvz7lo7e7di\"},{\"n\":\"11\",\"x\":\"1018.010176\",\"y\":\"952.053987\",\"z\":\"\",\"t\":\"T\",\"id\":\"pmwvz7lo7fw2g\"},{\"n\":\"12\",\"x\":\"1017.274971\",\"y\":\"949.1083755\",\"z\":\"\",\"t\":\"T\",\"id\":\"pmwvz7lo7gtb6\"},{\"n\":\"14\",\"x\":\"1025.918972\",\"y\":\"991.8913414\",\"z\":\"-1473.101282\",\"t\":\"pmwvzamuvo59t\",\"id\":\"pmwvzdm1sp2fy\"},{\"n\":\"15\",\"x\":\"1026.359469\",\"y\":\"996.9717744\",\"z\":\"-1436.308002\",\"t\":\"pmwvzamuvo59t\",\"id\":\"pmwvzdm1sqpao\"},{\"n\":\"16\",\"x\":\"1018.128636\",\"y\":\"991.0146894\",\"z\":\"-1457.509921\",\"t\":\"pmwvza25gn1sn\",\"id\":\"pmwvzdm1srvx7\"},{\"n\":\"17\",\"x\":\"1018.258993\",\"y\":\"992.6479646\",\"z\":\"-1467.317601\",\"t\":\"pmwvza25gn1sn\",\"id\":\"pmwvzdm1ss7xt\"},{\"n\":\"18\",\"x\":\"1015.535469\",\"y\":\"992.7351933\",\"z\":\"-1476.110881\",\"t\":\"pmwvza25gn1sn\",\"id\":\"pmwvzdm1stp1f\"},{\"n\":\"19\",\"x\":\"1015.389817\",\"y\":\"991.0242677\",\"z\":\"-1065.904162\",\"t\":\"pmwvza25gn1sn\",\"id\":\"pmwvzdm1su547\"},{\"n\":\"20\",\"x\":\"1014.560862\",\"y\":\"990.1455079\",\"z\":\"-1466.298402\",\"t\":\"pmwvz7xsmi9ot\",\"id\":\"pmwvzdm1sv5ou\"},{\"n\":\"21\",\"x\":\"1014.656269\",\"y\":\"991.364573\",\"z\":\"-1493.303202\",\"t\":\"pmwvz7xsmi9ot\",\"id\":\"pmwvzdm1swu6z\"},{\"n\":\"22\",\"x\":\"1012.645101\",\"y\":\"991.4840786\",\"z\":\"-1444.096483\",\"t\":\"pmwvz7xsmi9ot\",\"id\":\"pmwvzdm1sx2u7\"},{\"n\":\"23\",\"x\":\"1013.126567\",\"y\":\"994.7593857\",\"z\":\"-1482.106082\",\"t\":\"pmwvz7xsmi9ot\",\"id\":\"pmwvzdm1sy3c0\"},{\"n\":\"24\",\"x\":\"1009.219435\",\"y\":\"995.8708648\",\"z\":\"-2674.288803\",\"t\":\"pmwvz7xsmi9ot\",\"id\":\"pmwvzdm1szsma\"},{\"n\":\"25\",\"x\":\"1019.284041\",\"y\":\"1001.169347\",\"z\":\"-1453.519521\",\"t\":\"pmwvz9nzomqxj\",\"id\":\"pmwvzdm1s10lgu\"},{\"n\":\"26\",\"x\":\"1019.100719\",\"y\":\"998.8847297\",\"z\":\"-1455.13008\",\"t\":\"pmwvz9nzomqxj\",\"id\":\"pmwvzdm1s11szn\"},{\"n\":\"27\",\"x\":\"1017.43324\",\"y\":\"999.1937189\",\"z\":\"-1452.52432\",\"t\":\"pmwvz9nzomqxj\",\"id\":\"pmwvzdm1s12gvj\"},{\"n\":\"28\",\"x\":\"1021.047845\",\"y\":\"997.5442583\",\"z\":\"-1436.93296\",\"t\":\"T\",\"id\":\"pmwvzdm1s13wsb\"},{\"n\":\"29\",\"x\":\"1025.961942\",\"y\":\"989.4088643\",\"z\":\"-1474.692643\",\"t\":\"pmwvz7xsmi9ot\",\"id\":\"pmwvzdm1s14omd\"},{\"n\":\"30\",\"x\":\"1004.500401\",\"y\":\"997.8213778\",\"z\":\"-1511.257382\",\"t\":\"pmwvz7xsmi9ot\",\"id\":\"pmwvzdm1s15ph0\"},{\"n\":\"31\",\"x\":\"1001.58383\",\"y\":\"990.1262224\",\"z\":\"-1876.177834\",\"t\":\"pmwvz7xsmi9ot\",\"id\":\"pmwvzdm1s16bpy\"},{\"n\":\"32\",\"x\":\"999.4254786\",\"y\":\"999.1815104\",\"z\":\"-1329.04186\",\"t\":\"D\",\"id\":\"pmwvzdm1s174af\"},{\"n\":\"33\",\"x\":\"988.7979128\",\"y\":\"1009.975632\",\"z\":\"-1840.355226\",\"t\":\"T\",\"id\":\"pmwvzdm1s18jur\"},{\"n\":\"34\",\"x\":\"988.7425525\",\"y\":\"1006.501529\",\"z\":\"-1863.042605\",\"t\":\"T\",\"id\":\"pmwvzdm1s19fzg\"},{\"n\":\"35\",\"x\":\"990.0661777\",\"y\":\"1001.148553\",\"z\":\"-2010.469504\",\"t\":\"T\",\"id\":\"pmwvzdm1s1ayd4\"},{\"n\":\"36\",\"x\":\"990.3253201\",\"y\":\"997.4700655\",\"z\":\"-2016.719504\",\"t\":\"T\",\"id\":\"pmwvzdm1s1b1tv\"},{\"n\":\"37\",\"x\":\"991.9215683\",\"y\":\"991.1265034\",\"z\":\"-2123.740455\",\"t\":\"T\",\"id\":\"pmwvzdm1s1cus8\"},{\"n\":\"38\",\"x\":\"992.4661415\",\"y\":\"987.0292261\",\"z\":\"-2171.891336\",\"t\":\"T\",\"id\":\"pmwvzdm1s1dvs5\"},{\"n\":\"39\",\"x\":\"992.4121099\",\"y\":\"982.5809322\",\"z\":\"-2256.483248\",\"t\":\"T\",\"id\":\"pmwvzdm1s1ews1\"},{\"n\":\"40\",\"x\":\"993.6191925\",\"y\":\"974.7951335\",\"z\":\"-2254.781591\",\"t\":\"T\",\"id\":\"pmwvzdm1s1f8ug\"},{\"n\":\"41\",\"x\":\"993.838187\",\"y\":\"971.6621797\",\"z\":\"-2217.706082\",\"t\":\"T\",\"id\":\"pmwvzdm1s1g4t2\"},{\"n\":\"42\",\"x\":\"993.3462341\",\"y\":\"966.6574236\",\"z\":\"-2113.664034\",\"t\":\"T\",\"id\":\"pmwvzdm1s1hhq6\"},{\"n\":\"43\",\"x\":\"993.2655719\",\"y\":\"963.6180336\",\"z\":\"-2065.448245\",\"t\":\"T\",\"id\":\"pmwvzdm1s1i2mj\"},{\"n\":\"45\",\"x\":\"1006.264158\",\"y\":\"945.8764269\",\"z\":\"\",\"t\":\"pmwvzhent2ryni\",\"id\":\"pmwvzhbf91jd4o\"},{\"n\":\"46\",\"x\":\"1005.639765\",\"y\":\"947.9199489\",\"z\":\"\",\"t\":\"T\",\"id\":\"pmwvzhbf91k1td\"},{\"n\":\"47\",\"x\":\"1004.026781\",\"y\":\"949.9554976\",\"z\":\"\",\"t\":\"T\",\"id\":\"pmwvzhbf91l2ex\"},{\"n\":\"48\",\"x\":\"1006.008537\",\"y\":\"953.1908497\",\"z\":\"\",\"t\":\"T\",\"id\":\"pmwvzhbf91mtns\"},{\"n\":\"49\",\"x\":\"1008.563824\",\"y\":\"960.3122652\",\"z\":\"\",\"t\":\"T\",\"id\":\"pmwvzhbf91nf52\"},{\"n\":\"50\",\"x\":\"1013.16317\",\"y\":\"966.1507567\",\"z\":\"\",\"t\":\"pmwvz7xsmi9ot\",\"id\":\"pmwvzhbf91o1dn\"},{\"n\":\"51\",\"x\":\"1006.469249\",\"y\":\"942.1243304\",\"z\":\"\",\"t\":\"T\",\"id\":\"pmwvzhbf91p0dm\"},{\"n\":\"52\",\"x\":\"1005.316837\",\"y\":\"969.3591173\",\"z\":\"\",\"t\":\"pmwvzhent2ryni\",\"id\":\"pmwvzhbf91q59f\"},{\"n\":\"53\",\"x\":\"1004.903013\",\"y\":\"970.2539894\",\"z\":\"\",\"t\":\"T\",\"id\":\"pmwvzhbf91rzyp\"},{\"n\":\"54\",\"x\":\"1001.426867\",\"y\":\"948.3861195\",\"z\":\"\",\"t\":\"pmwvzhent2ryni\",\"id\":\"pmwvzhbf91sfau\"},{\"n\":\"55\",\"x\":\"988.4854769\",\"y\":\"944.9992281\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzhbf91tcea\"},{\"n\":\"56\",\"x\":\"989.4814958\",\"y\":\"946.2870295\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzhbf91uu3t\"},{\"n\":\"57\",\"x\":\"990.3359823\",\"y\":\"947.6462489\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzhbf91vgts\"},{\"n\":\"58\",\"x\":\"991.3694029\",\"y\":\"948.6488354\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzhbf91w6jc\"},{\"n\":\"59\",\"x\":\"992.1480849\",\"y\":\"950.255149\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzhbf91x1r1\"},{\"n\":\"60\",\"x\":\"992.8260176\",\"y\":\"951.5541524\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzhbf91yeka\"},{\"n\":\"61\",\"x\":\"993.4832505\",\"y\":\"953.0005978\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzhbf91z27z\"},{\"n\":\"62\",\"x\":\"994.0909554\",\"y\":\"954.4103243\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzhbf920sxh\"},{\"n\":\"63\",\"x\":\"994.6677262\",\"y\":\"956.1977236\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzhbf921y2f\"},{\"n\":\"64\",\"x\":\"995.0699448\",\"y\":\"957.3795092\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzhbf922j4h\"},{\"n\":\"65\",\"x\":\"995.7281239\",\"y\":\"959.5378509\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzhbf9232i5\"},{\"n\":\"66\",\"x\":\"996.1736934\",\"y\":\"961.5055541\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzhbf924ssf\"},{\"n\":\"67\",\"x\":\"996.4013216\",\"y\":\"962.6888202\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzhbf925akf\"},{\"n\":\"68\",\"x\":\"996.2767172\",\"y\":\"964.107342\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzhbf926sp2\"},{\"n\":\"69\",\"x\":\"996.5824056\",\"y\":\"965.8865578\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzhbf92781u\"},{\"n\":\"70\",\"x\":\"996.5812171\",\"y\":\"967.2928491\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzhbf928w3h\"},{\"n\":\"71\",\"x\":\"996.5038321\",\"y\":\"969.1065013\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzhbf929hta\"},{\"n\":\"72\",\"x\":\"996.2956143\",\"y\":\"970.7275959\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzhbf92a3cv\"},{\"n\":\"73\",\"x\":\"1001.707485\",\"y\":\"974.1726501\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzhbf92byb8\"},{\"n\":\"74\",\"x\":\"1002.028854\",\"y\":\"972.6622465\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzhbf92c5mp\"},{\"n\":\"75\",\"x\":\"1002.586887\",\"y\":\"969.4157162\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzhbf92dk18\"},{\"n\":\"76\",\"x\":\"1002.741556\",\"y\":\"967.9109708\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzhbf92eqml\"},{\"n\":\"77\",\"x\":\"1002.816742\",\"y\":\"966.2097187\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzhbf92fmrx\"},{\"n\":\"78\",\"x\":\"1002.865044\",\"y\":\"964.7162697\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzhbf92g6jo\"},{\"n\":\"79\",\"x\":\"1002.884183\",\"y\":\"963.2222621\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzhbf92hbj5\"},{\"n\":\"80\",\"x\":\"1002.722609\",\"y\":\"961.5722299\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzhbf92ix3s\"},{\"n\":\"81\",\"x\":\"1002.468686\",\"y\":\"959.5183373\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzhbf92jpc3\"},{\"n\":\"82\",\"x\":\"1002.039627\",\"y\":\"957.9626946\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzhbf92km0u\"},{\"n\":\"83\",\"x\":\"1001.664133\",\"y\":\"956.5994563\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzhbf92l5kd\"},{\"n\":\"84\",\"x\":\"1001.143436\",\"y\":\"955.0799114\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzhbf92mfvt\"},{\"n\":\"85\",\"x\":\"1000.781862\",\"y\":\"953.7055948\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzhbf92nksj\"},{\"n\":\"86\",\"x\":\"1000.181716\",\"y\":\"951.9979464\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzhbf92oiao\"},{\"n\":\"87\",\"x\":\"999.8078985\",\"y\":\"950.8447201\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzhbf92pubo\"},{\"n\":\"88\",\"x\":\"999.5379247\",\"y\":\"949.4072652\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzhbf92qzqm\"},{\"n\":\"89\",\"x\":\"988.1729467\",\"y\":\"1009.226094\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzno232s85l\"},{\"n\":\"90\",\"x\":\"992.308006\",\"y\":\"1009.210496\",\"z\":\"\",\"t\":\"pmwvz8w98lmje\",\"id\":\"pmwvzno232tv7c\"},{\"n\":\"91\",\"x\":\"994.450473\",\"y\":\"1009.497513\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzno232u6hh\"},{\"n\":\"92\",\"x\":\"989.1841067\",\"y\":\"1007.212243\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzno232vedv\"},{\"n\":\"93\",\"x\":\"992.9241688\",\"y\":\"1007.066301\",\"z\":\"\",\"t\":\"pmwvz8w98lmje\",\"id\":\"pmwvzno232wnt5\"},{\"n\":\"94\",\"x\":\"994.8885439\",\"y\":\"1007.407632\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzno232xqjv\"},{\"n\":\"95\",\"x\":\"989.4590844\",\"y\":\"1005.734902\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzno232yiq4\"},{\"n\":\"96\",\"x\":\"992.3164196\",\"y\":\"1006.400203\",\"z\":\"\",\"t\":\"pmwvz8w98lmje\",\"id\":\"pmwvzno232z27q\"},{\"n\":\"97\",\"x\":\"995.0667967\",\"y\":\"1006.297897\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzno2330ksi\"},{\"n\":\"98\",\"x\":\"995.1244937\",\"y\":\"1005.022891\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzno2331r0e\"},{\"n\":\"99\",\"x\":\"993.1086603\",\"y\":\"1004.063181\",\"z\":\"\",\"t\":\"pmwvz8w98lmje\",\"id\":\"pmwvzno23323rv\"},{\"n\":\"100\",\"x\":\"989.8467591\",\"y\":\"1004.232221\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzno2333gz1\"},{\"n\":\"101\",\"x\":\"989.4138762\",\"y\":\"1002.988977\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzno2334phc\"},{\"n\":\"102\",\"x\":\"993.6477091\",\"y\":\"1002.940816\",\"z\":\"\",\"t\":\"pmwvz8w98lmje\",\"id\":\"pmwvzno2335ulx\"},{\"n\":\"103\",\"x\":\"995.8925394\",\"y\":\"1002.851099\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzno2336rkp\"},{\"n\":\"104\",\"x\":\"996.222469\",\"y\":\"1001.315393\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzno2337ezy\"},{\"n\":\"105\",\"x\":\"994.0554379\",\"y\":\"1000.813746\",\"z\":\"\",\"t\":\"pmwvz8w98lmje\",\"id\":\"pmwvzno2338bkv\"},{\"n\":\"106\",\"x\":\"991.0006448\",\"y\":\"999.8922726\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzno2339s74\"},{\"n\":\"107\",\"x\":\"990.1534754\",\"y\":\"998.2547341\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzno233ak9b\"},{\"n\":\"108\",\"x\":\"994.0905433\",\"y\":\"998.9615773\",\"z\":\"\",\"t\":\"pmwvz8w98lmje\",\"id\":\"pmwvzno233blmb\"},{\"n\":\"109\",\"x\":\"997.0545206\",\"y\":\"999.4306572\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzno233cskf\"},{\"n\":\"110\",\"x\":\"996.7550527\",\"y\":\"997.6611292\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzno233dssf\"},{\"n\":\"111\",\"x\":\"994.6209394\",\"y\":\"997.3418601\",\"z\":\"\",\"t\":\"pmwvz8w98lmje\",\"id\":\"pmwvzno233ebun\"},{\"n\":\"112\",\"x\":\"991.6973087\",\"y\":\"996.5264833\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzno233fhq6\"},{\"n\":\"113\",\"x\":\"991.2398306\",\"y\":\"995.1771967\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzno233gs4o\"},{\"n\":\"114\",\"x\":\"995.2663711\",\"y\":\"996.3131643\",\"z\":\"\",\"t\":\"pmwvz8w98lmje\",\"id\":\"pmwvzno233hui5\"},{\"n\":\"115\",\"x\":\"996.9140385\",\"y\":\"996.0659383\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzno233io6s\"},{\"n\":\"116\",\"x\":\"997.4670327\",\"y\":\"994.5608754\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzno233jm72\"},{\"n\":\"117\",\"x\":\"994.9933386\",\"y\":\"993.7603413\",\"z\":\"\",\"t\":\"pmwvz8w98lmje\",\"id\":\"pmwvzno233km9v\"},{\"n\":\"118\",\"x\":\"992.3160477\",\"y\":\"993.600244\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzno233ld5r\"},{\"n\":\"119\",\"x\":\"992.3683161\",\"y\":\"992.0780431\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzno233mot6\"},{\"n\":\"121\",\"x\":\"998.0701791\",\"y\":\"993.2712712\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzno233os7x\"},{\"n\":\"122\",\"x\":\"998.0730926\",\"y\":\"991.2086959\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzno233plxn\"},{\"n\":\"123\",\"x\":\"995.5962108\",\"y\":\"991.0218799\",\"z\":\"\",\"t\":\"pmwvz8w98lmje\",\"id\":\"pmwvzno233qvmo\"},{\"n\":\"124\",\"x\":\"992.0678127\",\"y\":\"989.7004658\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzno233rwx2\"},{\"n\":\"126\",\"x\":\"995.9411124\",\"y\":\"988.7072841\",\"z\":\"\",\"t\":\"pmwvz8w98lmje\",\"id\":\"pmwvzypzg3sl7g\"},{\"n\":\"127\",\"x\":\"998.5518321\",\"y\":\"990.1054151\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzypzh3tx16\"},{\"n\":\"128\",\"x\":\"998.9969338\",\"y\":\"987.0387555\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzypzh3u55g\"},{\"n\":\"129\",\"x\":\"996.2903282\",\"y\":\"986.5004321\",\"z\":\"\",\"t\":\"pmwvz8w98lmje\",\"id\":\"pmwvzypzh3vlma\"},{\"n\":\"130\",\"x\":\"993.9896835\",\"y\":\"985.1717804\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzypzh3wpmw\"},{\"n\":\"131\",\"x\":\"993.7119316\",\"y\":\"984.205691\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzypzh3x346\"},{\"n\":\"132\",\"x\":\"998.3848804\",\"y\":\"992.1647343\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzypzh3ytkj\"},{\"n\":\"133\",\"x\":\"999.2641782\",\"y\":\"986.0193503\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzypzh3z60r\"},{\"n\":\"134\",\"x\":\"999.4787415\",\"y\":\"984.0084932\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzypzh40uth\"},{\"n\":\"135\",\"x\":\"996.6066253\",\"y\":\"983.3421187\",\"z\":\"\",\"t\":\"pmwvz8w98lmje\",\"id\":\"pmwvzypzh41lu7\"},{\"n\":\"136\",\"x\":\"993.8903192\",\"y\":\"983.0686149\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzypzh42u5w\"},{\"n\":\"137\",\"x\":\"994.0510195\",\"y\":\"980.905246\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzypzh43ga7\"},{\"n\":\"138\",\"x\":\"997.32942\",\"y\":\"982.1992134\",\"z\":\"\",\"t\":\"pmwvz8w98lmje\",\"id\":\"pmwvzypzh44g81\"},{\"n\":\"139\",\"x\":\"999.8523906\",\"y\":\"983.0006409\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzypzh45j5l\"},{\"n\":\"140\",\"x\":\"1000.253414\",\"y\":\"982.0017839\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzypzh46dzk\"},{\"n\":\"141\",\"x\":\"997.578877\",\"y\":\"980.1470868\",\"z\":\"\",\"t\":\"pmwvz8w98lmje\",\"id\":\"pmwvzypzh47gjg\"},{\"n\":\"142\",\"x\":\"994.482632\",\"y\":\"979.7377531\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzypzh48as0\"},{\"n\":\"143\",\"x\":\"994.7614822\",\"y\":\"978.6327837\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzypzh4978w\"},{\"n\":\"144\",\"x\":\"997.8564472\",\"y\":\"979.1096869\",\"z\":\"\",\"t\":\"pmwvz8w98lmje\",\"id\":\"pmwvzypzh4ajql\"},{\"n\":\"145\",\"x\":\"1000.470613\",\"y\":\"980.0055377\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzypzh4bfy7\"},{\"n\":\"148\",\"x\":\"995.0598878\",\"y\":\"977.5368014\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzypzh4eg51\"},{\"n\":\"149\",\"x\":\"995.3981973\",\"y\":\"976.4453102\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzypzh4fdpb\"},{\"n\":\"150\",\"x\":\"997.9125227\",\"y\":\"978.0992594\",\"z\":\"\",\"t\":\"pmwvz8w98lmje\",\"id\":\"pmwvzypzh4gojp\"},{\"n\":\"151\",\"x\":\"1000.819377\",\"y\":\"978.0152639\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzypzh4hb14\"},{\"n\":\"152\",\"x\":\"1001.20714\",\"y\":\"976.0303773\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzypzh4iyb9\"},{\"n\":\"153\",\"x\":\"998.3332742\",\"y\":\"976.0579444\",\"z\":\"\",\"t\":\"pmwvz8w98lmje\",\"id\":\"pmwvzypzh4jdva\"},{\"n\":\"154\",\"x\":\"995.5849857\",\"y\":\"974.3775948\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzypzh4k2yi\"},{\"n\":\"155\",\"x\":\"995.9095398\",\"y\":\"972.3003947\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzypzh4l3nm\"},{\"n\":\"156\",\"x\":\"999.0314208\",\"y\":\"973.0173787\",\"z\":\"\",\"t\":\"pmwvz8w98lmje\",\"id\":\"pmwvzypzh4mgho\"},{\"n\":\"159\",\"x\":\"998.7900476\",\"y\":\"972.0261548\",\"z\":\"\",\"t\":\"pmwvz8w98lmje\",\"id\":\"pmwvzypzh4pewj\"},{\"n\":\"160\",\"x\":\"995.972892\",\"y\":\"971.2809749\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzypzh4q0q2\"},{\"n\":\"161\",\"x\":\"996.0826257\",\"y\":\"970.2568633\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzypzh4r0ay\"},{\"n\":\"162\",\"x\":\"999.2456449\",\"y\":\"971.0098129\",\"z\":\"\",\"t\":\"pmwvz8w98lmje\",\"id\":\"pmwvzypzh4s9dk\"},{\"n\":\"163\",\"x\":\"1002.154764\",\"y\":\"972.083034\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzypzh4tc1e\"},{\"n\":\"164\",\"x\":\"999.1545595\",\"y\":\"969.0115307\",\"z\":\"\",\"t\":\"pmwvz8w98lmje\",\"id\":\"pmwvzypzh4u4y7\"},{\"n\":\"165\",\"x\":\"999.0249392\",\"y\":\"968.0148588\",\"z\":\"\",\"t\":\"pmwvz8w98lmje\",\"id\":\"pmwvzypzh4vzv3\"},{\"n\":\"166\",\"x\":\"999.5518754\",\"y\":\"965.0028689\",\"z\":\"\",\"t\":\"pmwvz8w98lmje\",\"id\":\"pmwvzypzh4wns5\"},{\"n\":\"167\",\"x\":\"999.3612536\",\"y\":\"963.0055139\",\"z\":\"\",\"t\":\"pmwvz8w98lmje\",\"id\":\"pmwvzypzh4xe5m\"},{\"n\":\"168\",\"x\":\"999.2236967\",\"y\":\"961.007727\",\"z\":\"\",\"t\":\"pmwvz8w98lmje\",\"id\":\"pmwvzypzh4ylcl\"},{\"n\":\"169\",\"x\":\"998.2590688\",\"y\":\"959.0369782\",\"z\":\"\",\"t\":\"pmwvz8w98lmje\",\"id\":\"pmwvzypzh4zr0p\"},{\"n\":\"170\",\"x\":\"998.0012833\",\"y\":\"957.0464771\",\"z\":\"\",\"t\":\"pmwvz8w98lmje\",\"id\":\"pmwvzypzh5030e\"},{\"n\":\"171\",\"x\":\"998.3104795\",\"y\":\"955.0317276\",\"z\":\"\",\"t\":\"pmwvz8w98lmje\",\"id\":\"pmwvzypzh51ohm\"},{\"n\":\"172\",\"x\":\"997.6685601\",\"y\":\"953.0578613\",\"z\":\"\",\"t\":\"pmwvz8w98lmje\",\"id\":\"pmwvzypzh52gs1\"},{\"n\":\"174\",\"x\":\"995.5610828\",\"y\":\"950.1974296\",\"z\":\"\",\"t\":\"pmwvz8w98lmje\",\"id\":\"pmwvzypzh54ef8\"},{\"n\":\"175\",\"x\":\"994.8016048\",\"y\":\"949.2656262\",\"z\":\"\",\"t\":\"pmwvz8w98lmje\",\"id\":\"pmwvzypzh5519z\"},{\"n\":\"176\",\"x\":\"993.9055192\",\"y\":\"947.3515688\",\"z\":\"\",\"t\":\"pmwvz8w98lmje\",\"id\":\"pmwvzypzh56gec\"},{\"n\":\"177\",\"x\":\"995.6315258\",\"y\":\"940.159241\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzypzh57s4w\"},{\"n\":\"178\",\"x\":\"997.8066069\",\"y\":\"944.0429716\",\"z\":\"\",\"t\":\"pmwvz8w98lmje\",\"id\":\"pmwvzypzh586o0\"},{\"n\":\"179\",\"x\":\"1000.099889\",\"y\":\"949.0000978\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzypzh593i6\"},{\"n\":\"180\",\"x\":\"1001.34474\",\"y\":\"947.0170624\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzypzh5arth\"},{\"n\":\"181\",\"x\":\"1000.512846\",\"y\":\"944.0023484\",\"z\":\"\",\"t\":\"pmwvz8w98lmje\",\"id\":\"pmwvzypzh5bsub\"},{\"n\":\"182\",\"x\":\"998.2575303\",\"y\":\"940.025307\",\"z\":\"\",\"t\":\"pmwvz88lfkz5b\",\"id\":\"pmwvzypzh5cmag\"},{\"n\":\"184\",\"x\":\"998.7210922\",\"y\":\"1001.537659\",\"z\":\"\",\"t\":\"pmwvz7nxth0en\",\"id\":\"pmwvzypzh5en22\"},{\"n\":\"185\",\"x\":\"997.4040366\",\"y\":\"996.9568152\",\"z\":\"\",\"t\":\"pmwvz7nxth0en\",\"id\":\"pmwvzypzh5f20p\"},{\"n\":\"187\",\"x\":\"1007.610535\",\"y\":\"997.5342828\",\"z\":\"\",\"t\":\"pmww09pw45hi5b\",\"id\":\"pmww0akl95iyjy\"},{\"n\":\"188\",\"x\":\"1008.999257\",\"y\":\"999.8843313\",\"z\":\"\",\"t\":\"pmww09pw45hi5b\",\"id\":\"pmww0akla5jfd4\"},{\"n\":\"189\",\"x\":\"1009.613805\",\"y\":\"997.247774\",\"z\":\"\",\"t\":\"pmww09pw45hi5b\",\"id\":\"pmww0akla5k5j8\"},{\"n\":\"190\",\"x\":\"1012.909863\",\"y\":\"999.0619622\",\"z\":\"\",\"t\":\"pmww09pw45hi5b\",\"id\":\"pmww0akla5l33a\"},{\"n\":\"191\",\"x\":\"1012.508817\",\"y\":\"996.6722455\",\"z\":\"\",\"t\":\"pmww09pw45hi5b\",\"id\":\"pmww0akla5ml0z\"},{\"n\":\"192\",\"x\":\"1011.342466\",\"y\":\"996.8656454\",\"z\":\"\",\"t\":\"pmww09pw45hi5b\",\"id\":\"pmww0akla5n1cd\"},{\"n\":\"193\",\"x\":\"1011.970439\",\"y\":\"999.1582215\",\"z\":\"\",\"t\":\"pmww09pw45hi5b\",\"id\":\"pmww0akla5od64\"},{\"n\":\"194\",\"x\":\"1013.884198\",\"y\":\"998.8865623\",\"z\":\"\",\"t\":\"pmwvz7nxth0en\",\"id\":\"pmww0akla5pxv2\"},{\"n\":\"195\",\"x\":\"1014.879484\",\"y\":\"1001.147743\",\"z\":\"\",\"t\":\"pmwvz7nxth0en\",\"id\":\"pmww0akla5q8k8\"},{\"n\":\"197\",\"x\":\"1014.69595\",\"y\":\"999.1747229\",\"z\":\"\",\"t\":\"pmwvz7nxth0en\",\"id\":\"pmww0fjn65s21g\"},{\"n\":\"198\",\"x\":\"1017.58661\",\"y\":\"998.3598521\",\"z\":\"\",\"t\":\"pmwvz7nxth0en\",\"id\":\"pmww0fjn65tvng\"},{\"n\":\"199\",\"x\":\"1015.632542\",\"y\":\"998.5420908\",\"z\":\"\",\"t\":\"pmwvz7nxth0en\",\"id\":\"pmww0fjn65u5ar\"},{\"n\":\"200\",\"x\":\"1015.200646\",\"y\":\"996.07034\",\"z\":\"\",\"t\":\"pmwvz7nxth0en\",\"id\":\"pmww0fjn65vouz\"},{\"n\":\"201\",\"x\":\"1017.110543\",\"y\":\"995.6172782\",\"z\":\"\",\"t\":\"pmwvz7nxth0en\",\"id\":\"pmww0fjn65w9z8\"},{\"n\":\"203\",\"x\":\"1018.521562\",\"y\":\"997.8650797\",\"z\":\"\",\"t\":\"pmwvz7nxth0en\",\"id\":\"pmww0fjn65yphd\"},{\"n\":\"204\",\"x\":\"1018.041114\",\"y\":\"995.2963444\",\"z\":\"\",\"t\":\"pmwvz7nxth0en\",\"id\":\"pmww0fjn65zg9u\"},{\"n\":\"205\",\"x\":\"1019.445685\",\"y\":\"997.349621\",\"z\":\"\",\"t\":\"pmwvz7nxth0en\",\"id\":\"pmww0fjn660xts\"},{\"n\":\"207\",\"x\":\"1019.360841\",\"y\":\"996.787987\",\"z\":\"\",\"t\":\"pmwvz7nxth0en\",\"id\":\"pmww0fjn662s7y\"},{\"n\":\"208\",\"x\":\"1020.215632\",\"y\":\"996.0042255\",\"z\":\"\",\"t\":\"pmwvz7nxth0en\",\"id\":\"pmww0fjn663p0x\"},{\"n\":\"231\",\"x\":\"1026.238168\",\"y\":\"988.0048823\",\"z\":\"\",\"t\":\"pmwvz7nxth0en\",\"id\":\"pmww0qjsd9ecai\"},{\"n\":\"232\",\"x\":\"1025.715821\",\"y\":\"985.160465\",\"z\":\"\",\"t\":\"pmwvz7nxth0en\",\"id\":\"pmww0qjsd9f6uc\"},{\"n\":\"233\",\"x\":\"1028.709981\",\"y\":\"984.5859782\",\"z\":\"\",\"t\":\"pmwvz7nxth0en\",\"id\":\"pmww0qjsd9gj6g\"},{\"n\":\"234\",\"x\":\"1024.071104\",\"y\":\"980.1354872\",\"z\":\"\",\"t\":\"pmwvz7nxth0en\",\"id\":\"pmww0wwy4bfy3c\"},{\"n\":\"235\",\"x\":\"1026.835631\",\"y\":\"979.4265376\",\"z\":\"\",\"t\":\"pmwvz8w98lmje\",\"id\":\"pmww0wwy4bg47h\"},{\"n\":\"236\",\"x\":\"1031.414591\",\"y\":\"979.2980504\",\"z\":\"\",\"t\":\"pmwvz7nxth0en\",\"id\":\"pmww0zv6ccestz\"},{\"n\":\"237\",\"x\":\"1023.873303\",\"y\":\"978.3933923\",\"z\":\"\",\"t\":\"pmwvz7nxth0en\",\"id\":\"pmww0wwy4bivpp\"},{\"n\":\"238\",\"x\":\"1026.995887\",\"y\":\"977.8729137\",\"z\":\"\",\"t\":\"pmwvz8w98lmje\",\"id\":\"pmww0wwy4bjkvu\"},{\"n\":\"239\",\"x\":\"1031.09801\",\"y\":\"977.306664\",\"z\":\"\",\"t\":\"pmwvz7nxth0en\",\"id\":\"pmww103urcfm2o\"},{\"n\":\"240\",\"x\":\"1030.440455\",\"y\":\"973.3460845\",\"z\":\"\",\"t\":\"pmwvz7nxth0en\",\"id\":\"pmww11mercgomn\"},{\"n\":\"241\",\"x\":\"1025.984206\",\"y\":\"973.7346745\",\"z\":\"\",\"t\":\"pmwvz8w98lmje\",\"id\":\"pmww0wwy4bm19r\"},{\"n\":\"242\",\"x\":\"1023.103005\",\"y\":\"974.6472258\",\"z\":\"\",\"t\":\"pmwvz7nxth0en\",\"id\":\"pmww0wwy4bn8k8\"},{\"n\":\"244\",\"x\":\"1022.57765\",\"y\":\"971.1810126\",\"z\":\"\",\"t\":\"pmwvz7nxth0en\",\"id\":\"pmww0wwy4bpzzr\"},{\"n\":\"245\",\"x\":\"1025.671514\",\"y\":\"970.5324211\",\"z\":\"\",\"t\":\"pmwvz8w98lmje\",\"id\":\"pmww15fmzchotw\"},{\"n\":\"246\",\"x\":\"1029.745916\",\"y\":\"969.3984331\",\"z\":\"\",\"t\":\"pmwvz7nxth0en\",\"id\":\"pmww15fmzcighh\"},{\"n\":\"247\",\"x\":\"1028.953605\",\"y\":\"965.4677474\",\"z\":\"\",\"t\":\"pmwvz7nxth0en\",\"id\":\"pmww15fmzcj9d7\"},{\"n\":\"248\",\"x\":\"1025.276216\",\"y\":\"965.3240357\",\"z\":\"\",\"t\":\"pmwvz8w98lmje\",\"id\":\"pmww15fmzck752\"},{\"n\":\"249\",\"x\":\"1019.850411\",\"y\":\"963.4194837\",\"z\":\"\",\"t\":\"pmwvz7nxth0en\",\"id\":\"pmww15fmzcl5mp\"},{\"n\":\"251\",\"x\":\"1025.388182\",\"y\":\"962.1409261\",\"z\":\"\",\"t\":\"pmwvz8w98lmje\",\"id\":\"pmww1a883cnhom\"},{\"n\":\"252\",\"x\":\"1028.285243\",\"y\":\"961.5224479\",\"z\":\"\",\"t\":\"pmwvz7nxth0en\",\"id\":\"pmww1a883comdt\"},{\"n\":\"253\",\"x\":\"1020.112451\",\"y\":\"959.8854072\",\"z\":\"\",\"t\":\"pmwvz7nxth0en\",\"id\":\"pmww1a883cpzm7\"},{\"n\":\"254\",\"x\":\"1023.133822\",\"y\":\"957.6008037\",\"z\":\"\",\"t\":\"pmwvz8w98lmje\",\"id\":\"pmww1a883cq48v\"},{\"n\":\"255\",\"x\":\"1027.028292\",\"y\":\"956.6575197\",\"z\":\"\",\"t\":\"pmwvz7nxth0en\",\"id\":\"pmww1a883crqhr\"},{\"n\":\"256\",\"x\":\"1027.028292\",\"y\":\"956.6575197\",\"z\":\"\",\"t\":\"pmwvz7nxth0en\",\"id\":\"pmww1a883csv2l\"},{\"n\":\"257\",\"x\":\"1022.709431\",\"y\":\"954.5902865\",\"z\":\"\",\"t\":\"pmwvz8w98lmje\",\"id\":\"pmww1a883ct9fr\"},{\"n\":\"258\",\"x\":\"1020.37157\",\"y\":\"955.4063944\",\"z\":\"\",\"t\":\"pmwvz7nxth0en\",\"id\":\"pmww1a883cu8gn\"},{\"n\":\"259\",\"x\":\"1024.063619\",\"y\":\"950.103293\",\"z\":\"\",\"t\":\"pmwvz7nxth0en\",\"id\":\"pmww1a883cvypc\"},{\"n\":\"260\",\"x\":\"1020.868104\",\"y\":\"950.9767067\",\"z\":\"\",\"t\":\"pmwvz8w98lmje\",\"id\":\"pmww1a883cwode\"},{\"n\":\"261\",\"x\":\"1018.808917\",\"y\":\"951.7231458\",\"z\":\"\",\"t\":\"pmwvz7nxth0en\",\"id\":\"pmww1a883cxq1k\"},{\"n\":\"262\",\"x\":\"1018.194067\",\"y\":\"948.7424518\",\"z\":\"\",\"t\":\"pmwvz7nxth0en\",\"id\":\"pmww1a883cyd4k\"},{\"n\":\"263\",\"x\":\"1021.817048\",\"y\":\"947.5657953\",\"z\":\"\",\"t\":\"pmwvz8w98lmje\",\"id\":\"pmww1a883cz1ri\"},{\"n\":\"264\",\"x\":\"1023.394439\",\"y\":\"947.1788121\",\"z\":\"\",\"t\":\"pmwvz7nxth0en\",\"id\":\"pmww1a883d08yu\"},{\"n\":\"265\",\"x\":\"1021.941093\",\"y\":\"944.437261\",\"z\":\"\",\"t\":\"pmwvz7nxth0en\",\"id\":\"pmww1a883d1zpx\"},{\"n\":\"266\",\"x\":\"1020.4457\",\"y\":\"942.756997\",\"z\":\"\",\"t\":\"pmwvz8w98lmje\",\"id\":\"pmww1a883d2hvk\"},{\"n\":\"267\",\"x\":\"1015.058345\",\"y\":\"942.4530453\",\"z\":\"\",\"t\":\"pmwvz7nxth0en\",\"id\":\"pmww1a883d3o04\"},{\"n\":\"268\",\"x\":\"1016.477212\",\"y\":\"940.8512633\",\"z\":\"\",\"t\":\"pmwvz7nxth0en\",\"id\":\"pmww1a883d4xnu\"},{\"n\":\"BM 1\",\"x\":\"1000\",\"y\":\"1000\",\"z\":\"\",\"t\":\"K\",\"id\":\"pmwvz7lo70lie\"},{\"n\":\"BM 2\",\"x\":\"1019.759515\",\"y\":\"996.9963474\",\"z\":\"\",\"t\":\"K\",\"id\":\"pmwvz7lo71t5y\"},{\"n\":\"BM 3\",\"x\":\"1031.419452\",\"y\":\"983.2980474\",\"z\":\"\",\"t\":\"K\",\"id\":\"pmwvz7lo72wbu\"},{\"n\":\"BM 4\",\"x\":\"1018.442863\",\"y\":\"941.328994\",\"z\":\"\",\"t\":\"K\",\"id\":\"pmwvz7lo73gy4\"},{\"n\":\"BM 5\",\"x\":\"994.0073656\",\"y\":\"939.2105542\",\"z\":\"\",\"t\":\"K\",\"id\":\"pmwvz7lo741yz\"}]", "sc": "250", "step": 5, "t": 1795606322630, "types": "[{\"id\":\"K\",\"name\":\"Kontrol\",\"color\":\"#dd3333\",\"shape\":\"triangle\",\"sz\":0.3,\"pre\":\"BM, KKH, TK\",\"connect\":true,\"closed\":true,\"ctl\":true},{\"id\":\"D\",\"name\":\"Detail\",\"color\":\"#0b5cab\",\"shape\":\"ring\",\"sz\":0.3,\"pre\":\"\",\"connect\":false,\"closed\":false,\"ctl\":false},{\"id\":\"T\",\"name\":\"Pohon\",\"color\":\"#1f9d3a\",\"shape\":\"tree\",\"sz\":0.3,\"pre\":\"Pohon\",\"connect\":false,\"closed\":false,\"ctl\":false},{\"id\":\"pmwvz7nxth0en\",\"name\":\"Jalan BSO\",\"color\":\"#e08a00\",\"shape\":\"filled\",\"sz\":0.3,\"pre\":\"\",\"connect\":false,\"closed\":false,\"ctl\":false,\"order\":\"data\"},{\"id\":\"pmwvz7xsmi9ot\",\"name\":\"Lab\",\"color\":\"#8e44ad\",\"shape\":\"filled\",\"sz\":0.3,\"pre\":\"\",\"connect\":false,\"closed\":false,\"ctl\":false},{\"id\":\"pmwvz842yjo6z\",\"name\":\"Gudang\",\"color\":\"#5384d4\",\"shape\":\"filled\",\"sz\":0.3,\"pre\":\"\",\"connect\":false,\"closed\":false,\"ctl\":false},{\"id\":\"pmwvz88lfkz5b\",\"name\":\"Jalan\",\"color\":\"#5e3c00\",\"shape\":\"filled\",\"sz\":0.3,\"pre\":\"\",\"connect\":false,\"closed\":false,\"ctl\":false,\"order\":\"dekat\"},{\"id\":\"pmwvz8w98lmje\",\"name\":\"Spot Height\",\"color\":\"#ffff00\",\"shape\":\"filled\",\"sz\":0.3,\"pre\":\"\",\"connect\":false,\"closed\":false,\"ctl\":false},{\"id\":\"pmwvz9nzomqxj\",\"name\":\"Gazebo Utara\",\"color\":\"#ff8769\",\"shape\":\"filled\",\"sz\":0.3,\"pre\":\"\",\"connect\":false,\"closed\":false,\"ctl\":false},{\"id\":\"pmwvza25gn1sn\",\"name\":\"Gazebo Selatan\",\"color\":\"#d42884\",\"shape\":\"filled\",\"sz\":0.3,\"pre\":\"\",\"connect\":true,\"closed\":true,\"ctl\":false},{\"id\":\"pmwvzamuvo59t\",\"name\":\"BSO\",\"color\":\"#7b00ff\",\"shape\":\"filled\",\"sz\":0.3,\"pre\":\"\",\"connect\":false,\"closed\":false,\"ctl\":false},{\"id\":\"pmwvzhent2ryni\",\"name\":\"Taman\",\"color\":\"#0e7a00\",\"shape\":\"filled\",\"sz\":0.3,\"pre\":\"\",\"connect\":false,\"closed\":false,\"ctl\":false},{\"id\":\"pmww09pw45hi5b\",\"name\":\"Tangga\",\"color\":\"#00ffff\",\"shape\":\"filled\",\"sz\":0.3,\"pre\":\"\",\"connect\":false,\"closed\":false,\"ctl\":false}]", "zlab": false};</script>
+<script id="app">
+const CL=window["cl"+"aude"];
+const DEF=[["BM 1",1000,1000],["BM 2",1019.759515,996.9963474],["BM 3",1031.419452,983.2980474],["BM 4",1018.442863,941.328994],["BM 5",994.0073656,939.2105542],["BSO ST",1043.033885,987.6414268],["Lab Baru ST",1024.078526,980.6616084],["Gudang UT",1021.56946,976.4440227],["Gudang ST",1020.109621,969.294915],["Pohon depan BSO ST",1035.911022,985.4948177],["Pohon berbatu",1031.543972,976.299155],["Pohon depan DTK",1030.159614,970.3592372],["Pohon 1 dkt gudang",1019.692738,967.0966835],["Pohon 2",1019.268356,958.0720514],["Pohon 3",1018.541995,955.0992691],["Pohon 4",1018.010176,952.053987],["Pohon 5",1017.274971,949.1083755],["Mushola UB",1020.012159,948.1004103]];
+const PW=1089,PH=793,FL=50,FR=869,FT=50,FB=743,NC=16,NR=13,SP=50,KEY="kkh_v3";
+const STEPS=["1 Layout","2 Grid bantu","3 Plot titik","4 Final","5 Sambung"];
+const $=id=>document.getElementById(id);
+const num=s=>{s=String(s).trim();if(!s)return NaN;if(s.includes(",")&&!s.includes("."))s=s.replace(",",".");return Number(s)};
+const fmt=v=>v.toFixed(1).replace(".",",");
+const f6=v=>v.toFixed(3).replace(".",",");
+const esc=t=>String(t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+const DEFT=()=>[
+ {id:"K",name:"Kontrol",color:"#dd3333",shape:"ring",sz:1.1,pre:"BM, KKH, TK",connect:true,closed:true,ctl:true},
+ {id:"D",name:"Detail",color:"#0b5cab",shape:"ring",sz:0.85,pre:"",connect:false,closed:false,ctl:false},
+ {id:"T",name:"Pohon",color:"#1f9d3a",shape:"tree",sz:1,pre:"Pohon",connect:false,closed:false,ctl:false}];
+let types=DEFT();
+const dfl=()=>types.find(t=>!t.pre&&!t.ctl)||types[types.length-1]||types[0];
+const tf=id=>types.find(t=>t.id===id)||dfl();
+function matchType(n){n=String(n||"").trim();for(const t of types)for(const q of String(t.pre||"").split(",")){const w=q.trim();if(w&&new RegExp("^"+w.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"\\b","i").test(n))return t}return null}
+const detType=n=>(matchType(n)||dfl()).id;
+const defRows=()=>DEF.map(d=>({n:d[0],x:String(d[1]),y:String(d[2]),z:"",t:detType(d[0])}));
+let step=1,rows=[],lines=[],cur=null,lastPos=[],docRef=null,lastP=null,tm=null;
+let uc=0;const uid=()=>"p"+Date.now().toString(36)+(uc++).toString(36)+Math.random().toString(36).slice(2,5);
+const ensureIds=()=>rows.forEach(r=>{if(!r.id)r.id=uid();if(!r.t)r.t=r.k?"K":detType(r.n);if("k"in r)delete r.k});
+const snap=()=>JSON.stringify({r:rows,l:lines,t:types});
+let hcur="",undoS=[],redoS=[],ht=null;
+function hui(){$("undo").disabled=!undoS.length;$("redo").disabled=!redoS.length}
+function hcommit(){clearTimeout(ht);ht=null;const q=snap();if(q!==hcur){undoS.push(hcur);if(undoS.length>100)undoS.shift();redoS=[];hcur=q;hui()}}
+const hsched=()=>{clearTimeout(ht);ht=setTimeout(hcommit,500)};
+function hrestore(q){hcur=q;const o=JSON.parse(q);rows=o.r;lines=o.l;if(o.t)types=o.t;cur=null;renderTypes();renderList();renderLines();uiLine();draw();save()}
+function undo(){hcommit();if(!undoS.length)return;redoS.push(hcur);hrestore(undoS.pop());hui()}
+function redo(){hcommit();if(!redoS.length)return;undoS.push(hcur);hrestore(redoS.pop());hui()}
+function hreset(){ensureIds();hcur=snap();undoS=[];redoS=[];clearTimeout(ht);hui()}
+
+// ---------- simpan otomatis (akun + perangkat) ----------
+const sv=t=>{$("sv").textContent=t};
+function localP(){try{const s=localStorage.getItem(KEY);return s?JSON.parse(s):null}catch(e){return null}}
+function applyP(p){
+  try{const r=JSON.parse(p.rows);if(Array.isArray(r))rows=r}catch(e){}
+  types=DEFT();try{const t=JSON.parse(p.types||"null");if(Array.isArray(t)&&t.length)types=t}catch(e){}
+  try{const l=JSON.parse(p.lines||"[]");lines=Array.isArray(l)?l:[]}catch(e){lines=[]}
+  step=p.step||1;if(p.sc)$("sc").value=p.sc;$("boost").checked=!!p.boost;
+  $("cont").checked=!!p.cont;if(p.ci!=null)$("ci").value=p.ci;if(p.cx!=null)$("cx").value=p.cx;if(p.ccol)$("ccol").value=p.ccol;$("csm").checked=p.csm!==false;$("cmax").value=p.cmax||"";$("zlab").checked=!!p.zlab;
+}
+const curP=()=>({rows:JSON.stringify(rows),lines:JSON.stringify(lines),types:JSON.stringify(types),step,sc:$("sc").value,boost:$("boost").checked,cont:$("cont").checked,ci:$("ci").value,cx:$("cx").value,ccol:$("ccol").value,csm:$("csm").checked,cmax:$("cmax").value,zlab:$("zlab").checked,t:Date.now()});
+function save(){
+  lastP=curP();
+  try{localStorage.setItem(KEY,JSON.stringify(lastP))}catch(e){}
+  sv("Menyimpan...");clearTimeout(tm);tm=setTimeout(flush,600);
+}
+async function flush(){
+  clearTimeout(tm);
+  if(!docRef||!lastP){sv("Tersimpan di perangkat");return}
+  try{await docRef.set(lastP);sv("Tersimpan ✓ (semua perangkat/akun)")}catch(e){sv("Tersimpan di perangkat")}
+}
+document.addEventListener("visibilitychange",()=>{if(document.hidden)flush()});
+window.addEventListener("pagehide",flush);
+const chg=()=>{draw();save();hsched();fillSel()};
+
+const p0=localP()||window.__INIT||null;if(p0&&p0.rows)applyP(p0);else rows=defRows();
+if(!Array.isArray(rows))rows=defRows();
+(async()=>{
+  if(!CL||!CL.use)return;
+  try{
+    const db=await CL.use("db");
+    if(!db)return;
+    docRef=db.doc("shared/project");
+    const snap=await docRef.get(),r=snap.exists?snap.data():null,l=localP();
+    if(r&&r.rows&&(!l||(r.t||0)>(l.t||0))){applyP(r);try{localStorage.setItem(KEY,JSON.stringify(r))}catch(e){}renderList();syncUI();draw()}
+    else if(l){lastP=l;flush()}else sv("Tersimpan di perangkat");
+    if(r||l)sv("Tersimpan ✓ (semua perangkat/akun)");
+  }catch(e){}
+})();
+
+// ---------- gambar ----------
+const sb=$("steps");
+STEPS.forEach((t,i)=>{const b=document.createElement("button");b.textContent=t;b.onclick=()=>{step=i+1;chg()};sb.appendChild(b)});
+$("sc").onchange=chg;$("boost").onchange=chg;
+function syncUI(){renderTypes();renderLines();uiLine();hreset()}
+
+function orderPts(t,pp){
+  let a=pp.slice();const m=t.order||"data";
+  if(m==="nama")a.sort((u,v)=>String(u.n).localeCompare(String(v.n),undefined,{numeric:true,sensitivity:"base"}));
+  else if(m==="x")a.sort((u,v)=>u.x-v.x);
+  else if(m==="y")a.sort((u,v)=>u.y-v.y);
+  else if(m==="dekat"&&a.length>2){const o=[a.shift()];while(a.length){const l=o[o.length-1];let bi=0,bd=Infinity;a.forEach((q,i)=>{const d=Math.hypot(q.x-l.x,q.y-l.y);if(d<bd){bd=d;bi=i}});o.push(a.splice(bi,1)[0])}a=o}
+  else if(m==="manual"){const pos=new Map((t.seq||[]).map((id,i)=>[id,i]));a.sort((u,v)=>(pos.has(u.id)?pos.get(u.id):1e9)-(pos.has(v.id)?pos.get(v.id):1e9))}
+  if(t.rev)a.reverse();
+  return a;
+}
+function manualList(t){
+  const pos=new Map((t.seq||[]).map((id,i)=>[id,i]));
+  return rows.filter(r=>tf(r.t).id===t.id).map((r,i)=>[r,i]).sort((a,b)=>(pos.has(a[0].id)?pos.get(a[0].id):1e9+a[1])-(pos.has(b[0].id)?pos.get(b[0].id):1e9+b[1])).map(x=>x[0]);
+}
+const fz=v=>String(+(+v).toFixed(3)).replace(".",",");
+const readCO=()=>({on:$("cont").checked,iv:num($("ci").value)>0?num($("ci").value):1,ix:Math.max(1,Math.round(num($("cx").value))||5),col:$("ccol").value||"#a0522d",sm:$("csm").checked,mx:num($("cmax").value),zl:$("zlab").checked});
+function prune(){
+  const ids=new Set(rows.map(r=>r.id));let ch=false;
+  lines.forEach(l=>{const n=l.pts.filter(i=>ids.has(i));if(n.length!==l.pts.length){l.pts=n;ch=true}});
+  const k=lines.filter(l=>l.pts.length>=2);if(k.length!==lines.length){lines=k;ch=true}
+  if(cur)cur.pts=cur.pts.filter(i=>ids.has(i));
+  if(ch)renderLines();
+}
+function delaunay(Z){
+  const n=Z.length;let x0=1e18,x1=-1e18,y0=1e18,y1=-1e18;
+  Z.forEach(p=>{x0=Math.min(x0,p.x);x1=Math.max(x1,p.x);y0=Math.min(y0,p.y);y1=Math.max(y1,p.y)});
+  const d=Math.max(x1-x0,y1-y0)||1,mx=(x0+x1)/2,my=(y0+y1)/2;
+  const P=Z.concat([{x:mx-30*d,y:my-d},{x:mx,y:my+30*d},{x:mx+30*d,y:my-d}]);
+  const cc=(a,b,c)=>{const A=P[a],B=P[b],C=P[c],dd=2*(A.x*(B.y-C.y)+B.x*(C.y-A.y)+C.x*(A.y-B.y));if(Math.abs(dd)<1e-12)return null;
+    const a2=A.x*A.x+A.y*A.y,b2=B.x*B.x+B.y*B.y,c2=C.x*C.x+C.y*C.y,ux=(a2*(B.y-C.y)+b2*(C.y-A.y)+c2*(A.y-B.y))/dd,uy=(a2*(C.x-B.x)+b2*(A.x-C.x)+c2*(B.x-A.x))/dd;
+    return{x:ux,y:uy,r2:(A.x-ux)*(A.x-ux)+(A.y-uy)*(A.y-uy)}};
+  let T=[{v:[n,n+1,n+2],c:cc(n,n+1,n+2)}];
+  for(let i=0;i<n;i++){
+    const bad=[],keep=[];
+    for(const t of T){const c=t.c;if(c&&(P[i].x-c.x)*(P[i].x-c.x)+(P[i].y-c.y)*(P[i].y-c.y)<=c.r2*(1+1e-12))bad.push(t);else keep.push(t)}
+    const E=new Map();
+    for(const t of bad)for(let e=0;e<3;e++){const a=t.v[e],b=t.v[(e+1)%3],k=a<b?a+"_"+b:b+"_"+a;E.set(k,E.has(k)?null:[a,b])}
+    T=keep;
+    for(const v of E.values())if(v)T.push({v:[v[0],v[1],i],c:cc(v[0],v[1],i)});
+  }
+  return T.filter(t=>t.v.every(i=>i<n)).map(t=>t.v);
+}
+function levelChains(T,Z,lv){
+  const pts=new Map(),nb=new Map();
+  const ep=(a,b)=>{const k=a<b?a+"_"+b:b+"_"+a;if(!pts.has(k)){const A=Z[a],B=Z[b],t=(lv-A.z)/(B.z-A.z);pts.set(k,{x:A.x+(B.x-A.x)*t,y:A.y+(B.y-A.y)*t})}return k};
+  const link=(a,b)=>{if(!nb.has(a))nb.set(a,[]);nb.get(a).push(b)};
+  for(const t of T){const c=[];for(let e=0;e<3;e++){const a=t[e],b=t[(e+1)%3];if((Z[a].z<lv)!==(Z[b].z<lv))c.push(ep(a,b))}
+    if(c.length===2&&c[0]!==c[1]){link(c[0],c[1]);link(c[1],c[0])}}
+  const used=new Set(),ek=(a,b)=>a<b?a+"|"+b:b+"|"+a,res=[];
+  const walk=st=>{const ch=[st];let c=st;for(;;){const nx=(nb.get(c)||[]).find(k=>!used.has(ek(c,k)));if(nx===undefined)break;used.add(ek(c,nx));ch.push(nx);c=nx;if(c===st)break}return ch};
+  for(const[k,v]of nb)if(v.length===1)res.push(walk(k));
+  for(const[k,v]of nb)if(v.some(n=>!used.has(ek(k,n))))res.push(walk(k));
+  return res.filter(ch=>ch.length>1).map(ch=>{const closed=ch.length>2&&ch[0]===ch[ch.length-1],ks=closed?ch.slice(0,-1):ch;return{pts:ks.map(k=>pts.get(k)),closed}});
+}
+function chaikin(pts,closed,it){
+  for(let t=0;t<it;t++){const o=[],n=pts.length;if(!closed)o.push(pts[0]);const m=closed?n:n-1;
+    for(let i=0;i<m;i++){const a=pts[i],b=pts[(i+1)%n];o.push({x:.75*a.x+.25*b.x,y:.75*a.y+.25*b.y},{x:.25*a.x+.75*b.x,y:.25*a.y+.75*b.y})}
+    if(!closed)o.push(pts[n-1]);pts=o}
+  return pts;
+}
+function clipSeg(a,b){
+  let t0=0,t1=1;const dx=b.x-a.x,dy=b.y-a.y,Pp=[-dx,dx,-dy,dy],Q=[a.x-FL,FR-a.x,a.y-FT,FB-a.y];
+  for(let i=0;i<4;i++){if(Pp[i]===0){if(Q[i]<0)return null}else{const r=Q[i]/Pp[i];if(Pp[i]<0){if(r>t1)return null;if(r>t0)t0=r}else{if(r<t0)return null;if(r<t1)t1=r}}}
+  return[{x:a.x+t0*dx,y:a.y+t0*dy},{x:a.x+t1*dx,y:a.y+t1*dy}];
+}
+function clipLine(pts){
+  const out=[];let cu=null;
+  for(let i=0;i<pts.length-1;i++){const sg=clipSeg(pts[i],pts[i+1]);if(!sg){cu=null;continue}
+    if(cu&&Math.abs(cu[cu.length-1].x-sg[0].x)<1e-6&&Math.abs(cu[cu.length-1].y-sg[0].y)<1e-6)cu.push(sg[1]);else{cu=[sg[0],sg[1]];out.push(cu)}}
+  return out;
+}
+function contourSVG(P,px,py,CO,W,mm){
+  const Z=[],seen=new Set();
+  P.forEach(p=>{if(!isFinite(p.z))return;const x=px(p.x),y=py(p.y),k=x.toFixed(3)+","+y.toFixed(3);if(seen.has(k))return;seen.add(k);Z.push({x,y,z:p.z})});
+  const R={svg:"",n:0,z:Z.length};
+  if(Z.length<3)return R;
+  const zmin=Math.min(...Z.map(p=>p.z)),zmax=Math.max(...Z.map(p=>p.z));
+  const m0=Math.ceil(zmin/CO.iv-1e-9),m1=Math.floor(zmax/CO.iv+1e-9);
+  if(m1<m0)return R;
+  if(m1-m0>300){R.err="interval terlalu rapat, perbesar interval";return R}
+  let T=delaunay(Z);
+  if(isFinite(CO.mx)&&CO.mx>0){const lim=CO.mx*mm,ds=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);T=T.filter(t=>{const a=Z[t[0]],b=Z[t[1]],c=Z[t[2]];return Math.max(ds(a,b),ds(b,c),ds(c,a))<=lim})}
+  let dN="",dI="",lab="";const f2=v=>v.toFixed(2),fs=3.5;
+  for(let m=m0;m<=m1;m++){
+    const lv=+(m*CO.iv).toFixed(6),idx=m%CO.ix===0;
+    for(const ch of levelChains(T,Z,lv)){
+      let pts=ch.pts;if(CO.sm&&pts.length>2)pts=chaikin(pts,ch.closed,2);
+      if(ch.closed)pts=pts.concat([pts[0]]);
+      for(const pc of clipLine(pts)){
+        if(pc.length<2)continue;R.n++;
+        const d="M"+pc.map(q=>f2(q.x)+" "+f2(q.y)).join("L");
+        if(idx)dI+=d;else dN+=d;
+        if(idx){
+          let L=0;const cum=[0];for(let i=1;i<pc.length;i++){L+=Math.hypot(pc[i].x-pc[i-1].x,pc[i].y-pc[i-1].y);cum.push(L)}
+          if(L<30)continue;
+          let i=1;while(i<pc.length-1&&cum[i]<L/2)i++;
+          const a=pc[i-1],b=pc[Math.min(i+1,pc.length-1)];let ang=Math.atan2(b.y-a.y,b.x-a.x);
+          if(ang>Math.PI/2)ang-=Math.PI;else if(ang<-Math.PI/2)ang+=Math.PI;
+          const c=Math.cos(ang),sn=Math.sin(ang),t=fz(lv),w=t.length*fs*0.56,mp=pc[i];
+          const x=mp.x-c*w/2+sn*1.4,y=mp.y-sn*w/2-c*1.4,deg=Math.round(ang*18000/Math.PI)/100;
+          lab+=`<text x="${f2(x)}" y="${f2(y)}" font-size="${fs}" fill="${CO.col}"${deg?` transform="rotate(${deg} ${f2(x)} ${f2(y)})"`:""}>${t}</text>`;
+        }
+      }
+    }
+  }
+  if(dN)R.svg+=`<path d="${dN}" fill="none" stroke="${CO.col}" stroke-width="${W.tick*1.2}"/>`;
+  if(dI)R.svg+=`<path d="${dI}" fill="none" stroke="${CO.col}" stroke-width="${W.tick*2.4}"/>`;
+  R.svg+=lab;return R;
+}
+
+function draw(kk){
+  if(!kk)[...sb.children].forEach((b,i)=>b.classList.toggle("on",i+1===step));
+  const k=kk||($("boost").checked?4:1),W={lay:0.5*k,tick:0.3*k,grid:0.1*k};
+  ensureIds();if(!kk)prune();
+  const CO=readCO(),lab=p=>esc(p.n)+(CO.zl&&isFinite(p.z)?" ("+fz(p.z)+")":"");
+  const P=rows.map(r=>({id:r.id,n:r.n,x:num(r.x),y:num(r.y),z:num(r.z),t:tf(r.t).id,k:!!tf(r.t).ctl})).filter(p=>isFinite(p.x)&&isFinite(p.y));
+  let xmin=0,xmax=0,ymin=0,ymax=0;
+  const B=P.some(p=>p.k)?P.filter(p=>p.k):P;
+  if(B.length){xmin=Math.min(...B.map(p=>p.x));xmax=Math.max(...B.map(p=>p.x));ymin=Math.min(...B.map(p=>p.y));ymax=Math.max(...B.map(p=>p.y))}
+  const sx=P.length?Math.max(...P.map(p=>p.x))-Math.min(...P.map(p=>p.x)):0,sy=P.length?Math.max(...P.map(p=>p.y))-Math.min(...P.map(p=>p.y)):0;
+  const cx=(xmin+xmax)/2,cy=(ymin+ymax)/2;
+  let S=$("sc").value;
+  if(S==="auto"){S=[100,125,200,250,300,400,500,750,1000,1250,2000,2500,5000,10000].find(s=>sx*1000/s<=640&&sy*1000/s<=520)||10000}
+  S=+S;
+  const stepM=0.05*S,mm=1000/S;
+  const gx0=Math.floor(cx/stepM)*stepM,gy0=Math.floor(cy/stepM)*stepM;
+  const X=c=>gx0+(c-8)*stepM,Y=r=>gy0+(r-6)*stepM;
+  const gx=c=>FL+SP*c,gy=r=>FB-SP*r;
+  const px=v=>gx(1)+(v-X(1))*mm,py=v=>gy(1)-(v-Y(1))*mm;
+  let o=`<rect x="0" y="0" width="${PW}" height="${PH}" fill="#fff" stroke="#999" stroke-width="0.3"/>`;
+  const st=`fill="none" stroke="#000" stroke-width="${W.lay}"`;
+  o+=`<rect x="20" y="20" width="1049" height="753" ${st}/><rect x="${FL}" y="${FT}" width="${FR-FL}" height="${FB-FT}" ${st}/>`;
+  const hs=[90,90,90,153,90,90,90],nm=["1 Judul Peta","2 Arah Utara, Skala Numeris dan Grafis","3 Indeks Peta","4 Legenda","5 Datum, Tahun, Metode","6 Pelaksana Pemetaan","7 Pengesahan"];
+  let y=FT;
+  hs.forEach((h,i)=>{o+=`<rect x="889" y="${y}" width="150" height="${h}" ${st}/><text x="895" y="${y+9}" font-size="5" fill="#000">${nm[i]}</text>`;if(i===1)o+=`<text x="895" y="${y+22}" font-size="6" fill="#000">Skala 1:${S}</text>`;y+=h});
+  const ty=`font-size="3.5" fill="#000"`;
+  if(step>=2){
+    const e=step>=4?W.tick:W.grid,gc=step>=4?"#000":"#2f6fd0";
+    for(let c=1;c<=NC;c++){const x=gx(c),t=fmt(X(c));
+      o+=`<path d="M${x} ${FT}v-4M${x} ${FB}v4" stroke="#000" stroke-width="${e}" fill="none"/>`;
+      o+=`<text x="${x+1.2}" y="${FB+6}" ${ty} text-anchor="end" transform="rotate(-90 ${x+1.2} ${FB+6})">${t}</text><text x="${x+1.2}" y="${FT-6}" ${ty} transform="rotate(-90 ${x+1.2} ${FT-6})">${t}</text>`;
+      if(step<4)o+=`<path d="M${x} ${FT}V${FB}" stroke="${gc}" stroke-width="${W.grid}" fill="none"/>`}
+    for(let r=1;r<=NR;r++){const yy=gy(r),t=fmt(Y(r));
+      o+=`<path d="M${FL} ${yy}h-4M${FR} ${yy}h4" stroke="#000" stroke-width="${e}" fill="none"/>`;
+      o+=`<text x="${FL-6}" y="${yy+1.2}" ${ty} text-anchor="end">${t}</text><text x="${FR+5}" y="${yy+1.2}" ${ty}>${t}</text>`;
+      if(step<4)o+=`<path d="M${FL} ${yy}H${FR}" stroke="${gc}" stroke-width="${W.grid}" fill="none"/>`}
+    let d="",dots="";
+    for(let c=1;c<=NC;c++)for(let r=1;r<=NR;r++){const x=gx(c),yy=gy(r);d+=`M${x-3} ${yy}h2M${x+1} ${yy}h2M${x} ${yy-3}v2M${x} ${yy+1}v2`;dots+=`<circle cx="${x}" cy="${yy}" r="0.4" fill="#000"/>`}
+    o+=`<path d="${d}" stroke="#000" stroke-width="${step>=4?W.tick:W.grid}" fill="none"/>`+dots;
+    if(step<4)for(const c of[8,9])for(const r of[6,7])o+=`<circle cx="${gx(c)}" cy="${gy(r)}" r="2.2" fill="none" stroke="#d33" stroke-width="${W.grid*2}"/>`;
+  }
+  let out=0;
+  P.forEach(p=>{const x=px(p.x),y=py(p.y);if(x<FL||x>FR||y<FT||y>FB)out++});
+  if(!kk)lastPos=P.map(p=>({id:p.id,x:px(p.x),y:py(p.y)}));
+  let cinfo="";
+  if(step>=3){
+    const byId=new Map(P.map(p=>[p.id,p])),pth=pp=>"M"+pp.map(p=>px(p.x).toFixed(2)+" "+py(p.y).toFixed(2)).join("L");
+    if(CO.on){const C=contourSVG(P,px,py,CO,W,mm);o+=C.svg;
+      cinfo=C.err?` · <b>kontur: ${C.err}</b>`:C.z<3?` · <b>kontur butuh minimal 3 titik berisi Z (baru ${C.z})</b>`:` · kontur ${C.n} garis, interval ${fz(CO.iv)} m, indeks tiap ${CO.ix} garis`}
+    if(step>=5){
+    types.forEach(t=>{if(!t.connect)return;const pp=orderPts(t,P.filter(p=>p.t===t.id));if(pp.length<2)return;
+      o+=`<path d="${pth(pp)}${t.closed&&pp.length>2?"Z":""}" fill="none" stroke="${t.color}" stroke-width="${W.tick}"/>`;
+      if(!kk&&t.order==="manual")pp.forEach((p,i)=>{o+=`<text x="${px(p.x)+1.5}" y="${py(p.y)+5}" font-size="3.2" fill="${t.color}">${i+1}</text>`})});
+    lines.forEach(l=>{const pp=l.pts.map(i=>byId.get(i)).filter(Boolean);if(pp.length<2)return;
+      o+=`<path d="${pth(pp)}${l.closed&&pp.length>2?"Z":""}" fill="none" stroke="${l.color}" stroke-width="${W.tick*1.5}"/>`});
+    if(!kk&&cur&&cur.pts.length){const pp=cur.pts.map(i=>byId.get(i)).filter(Boolean),c=$("lcol").value;
+      if(pp.length>1)o+=`<path d="${pth(pp)}${$("lclose").checked&&pp.length>2?"Z":""}" fill="none" stroke="${c}" stroke-width="${W.tick*1.5}" stroke-dasharray="2 1.5"/>`;
+      pp.forEach((p,i)=>{const x=px(p.x),y=py(p.y);o+=`<circle cx="${x}" cy="${y}" r="2.6" fill="none" stroke="${c}" stroke-width="${W.tick}"/><text x="${x+3}" y="${y+5}" font-size="3.5" fill="${c}">${i+1}</text>`})}
+    }
+    P.forEach(p=>{
+      const x=px(p.x),y=py(p.y),t=tf(p.t),z=+t.sz||1,r=1.45*z,c=t.color,sw=W.tick,dot=`<circle cx="${x}" cy="${y}" r="0.45" fill="${c}"/>`;
+      let g;
+      if(t.shape==="filled")g=`<circle cx="${x}" cy="${y}" r="${r}" fill="${c}" stroke="${c}" stroke-width="${sw}"/>`;
+      else if(t.shape==="tree")g=`<circle cx="${x}" cy="${y}" r="${r}" fill="${c}" stroke="${c}" stroke-width="${sw}"/><path d="M${x} ${y+r}L${x} ${y+r+1.3*z}" fill="none" stroke="${c}" stroke-width="${sw*2}"/>`;
+      else if(t.shape==="square")g=`<rect x="${x-r}" y="${y-r}" width="${2*r}" height="${2*r}" fill="none" stroke="${c}" stroke-width="${sw}"/>`+dot;
+      else if(t.shape==="triangle")g=`<path d="M${x} ${y-r*1.15}L${x+r*1.05} ${y+r*0.8}L${x-r*1.05} ${y+r*0.8}Z" fill="none" stroke="${c}" stroke-width="${sw}"/>`+dot;
+      else if(t.shape==="cross")g=`<path d="M${x-r} ${y}L${x+r} ${y}M${x} ${y-r}L${x} ${y+r}" fill="none" stroke="${c}" stroke-width="${sw}"/>`;
+      else g=`<circle cx="${x}" cy="${y}" r="${r}" fill="none" stroke="${c}" stroke-width="${sw}"/>`+dot;
+      o+=g+`<text x="${x+r*1.9}" y="${y-r*1.25}" font-size="${(4.1*z).toFixed(2)}" fill="${c}">${lab(p)}</text>`});
+  }
+  if(kk)return o;
+  $("g").innerHTML=o;
+  $("info").innerHTML=`${P.length} titik valid · titik tengah KKH: X ${f6(cx)}, Y ${f6(cy)} (Xmin ${f6(xmin)}, Xmax ${f6(xmax)}, Ymin ${f6(ymin)}, Ymax ${f6(ymax)}) · skala 1:${S} · grid 5 cm = ${fmt(stepM)} m · 4 grid tengah: X ${fmt(X(8))} dan ${fmt(X(9))}; Y ${fmt(Y(6))} dan ${fmt(Y(7))}`+(step>=4?" · grid bantu dihapus":"")+(step>=5?" · garis sambung tampil":"")+cinfo+(out?` · <b>${out} titik di luar muka peta, perbesar skala</b>`:"");
+}
+
+// ---------- panel data ----------
+const msg=(t,err)=>{$("msg").textContent=t;$("msg").className=err?"err":""};
+const selD=new Set();
+function updSel(){for(const r of [...selD])if(!rows.includes(r))selD.delete(r);const b=$("seldel");b.textContent="Hapus terpilih ("+selD.size+")";b.disabled=!selD.size}
+function renderList(){
+  const L=$("list");L.innerHTML="";
+  rows.forEach((r,i)=>{
+    const d=document.createElement("div");d.className="li";d.style.gridTemplateColumns="22px 1.3fr 1fr 1fr .8fr 78px 30px";
+    const cb=document.createElement("input");cb.type="checkbox";cb.checked=selD.has(r);cb.style.cssText="width:auto;margin:0";cb.onchange=()=>{cb.checked?selD.add(r):selD.delete(r);updSel()};
+    const mk=(key,ph)=>{const inp=document.createElement("input");inp.value=r[key]??"";inp.placeholder=ph;if(key!=="n")inp.inputMode="decimal";inp.oninput=()=>{r[key]=inp.value;if(key==="n"){const m=matchType(r.n);if(m){r.t=m.id;sel.value=m.id}}chg()};return inp};
+    const sel=document.createElement("select");types.forEach(t=>{const o=document.createElement("option");o.value=t.id;o.textContent=t.name;sel.appendChild(o)});sel.value=tf(r.t).id;sel.onchange=()=>{r.t=sel.value;chg()};
+    const del=document.createElement("button");del.textContent="×";del.onclick=()=>{rows.splice(i,1);selD.delete(r);renderList();chg()};
+    d.append(cb,mk("n","Nama"),mk("x","X"),mk("y","Y"),mk("z","Z"),sel,del);L.appendChild(d)});
+  updSel();
+  fillSel();
+}
+$("selall").onclick=()=>{rows.forEach(r=>selD.add(r));renderList()};
+$("selnone").onclick=()=>{selD.clear();renderList()};
+$("seldel").onclick=()=>{const n=selD.size;if(!n)return;rows=rows.filter(r=>!selD.has(r));selD.clear();renderList();chg();msg(n+" titik dihapus. Bisa dibatalkan dengan Undo.")};
+$("dbtn").onclick=()=>{const p=$("panel");p.hidden=!p.hidden;$("dbtn").classList.toggle("on",!p.hidden);if(!p.hidden)renderList()};
+function addPoint(){
+  const x=$("ax").value,y=$("ay").value,z=$("az").value.trim();
+  if(!isFinite(num(x))||!isFinite(num(y))){msg("Isi X dan Y dengan angka.",1);return}
+  if(z&&!isFinite(num(z))){msg("Z harus angka (atau kosongkan).",1);return}
+  const n=$("an").value.trim()||"Titik "+(rows.length+1);
+  rows.push({id:uid(),n,x:x.trim(),y:y.trim(),z,t:$("at").value||detType(n)});
+  $("an").value=$("ax").value=$("ay").value=$("az").value="";$("an").focus();
+  msg("Titik “"+n+"” ditambahkan.");renderList();chg();
+}
+$("add").onclick=addPoint;
+["an","ax","ay","az"].forEach(id=>$(id).addEventListener("keydown",e=>{if(e.key==="Enter")addPoint()}));
+$("reset").onclick=()=>{rows=defRows();renderList();chg();msg("Data contoh dimuat.")};
+let armed=0;
+$("clear").onclick=()=>{if(!armed){armed=1;$("clear").textContent="Yakin kosongkan?";setTimeout(()=>{armed=0;$("clear").textContent="Kosongkan"},3000);return}armed=0;$("clear").textContent="Kosongkan";rows=[];renderList();chg();msg("Semua data dikosongkan.")};
+
+function parseText(text){
+  const out=[];
+  text.split(/\r?\n/).forEach(line=>{
+    line=line.trim();if(!line)return;
+    let n,x,y,z="";
+    if(/\t|;/.test(line)){[n,x,y,z=""]=line.split(/\t|;/).map(s=>s.trim())}
+    else if(line.split(",").length===4){[n,x,y,z]=line.split(",").map(s=>s.trim())}
+    else{const m=line.match(/^(.*?)[\s,]+(-?[\d.,]+)[\s,]+(-?[\d.,]+)$/);if(m){n=m[1];x=m[2];y=m[3]}}
+    if(n===undefined||!isFinite(num(x))||!isFinite(num(y)))return;
+    out.push({n:n||"Titik "+(out.length+1),x:String(x),y:String(y),z:isFinite(num(z))?String(z):"",t:detType(n||"")})});
+  return out;
+}
+function setRows(nr,src,force){
+  if(!nr.length){msg("Tidak ada baris koordinat yang terbaca.",1);return}
+  rows=(force||$("mode").value)==="append"?rows.concat(nr):nr;
+  renderList();chg();msg(nr.length+" titik dari "+src+" dimasukkan. Periksa angkanya.");
+}
+$("apply").onclick=()=>{const r=parseText($("paste").value);setRows(r,"tempelan","replace");if(r.length)$("paste").value=""};
+function sortRows(dir){
+  if(rows.length<2)return;
+  const cmp=(a,b)=>String(a.n||"").localeCompare(String(b.n||""),undefined,{numeric:true,sensitivity:"base"})*dir;
+  rows=rows.map((r,i)=>[r,i]).sort((a,b)=>cmp(a[0],b[0])||a[1]-b[1]).map(p=>p[0]);
+  renderList();chg();msg("Data diurutkan menurut nama ("+(dir>0?"A→Z":"Z→A")+"). Angka diurutkan wajar: P2 sebelum P10.");
+}
+$("sortaz").onclick=()=>sortRows(1);
+$("sortza").onclick=()=>sortRows(-1);
+$("addp").onclick=()=>{const r=parseText($("paste").value);setRows(r,"tempelan","append");if(r.length)$("paste").value=""};
+
+// upload screenshot
+
+$("fimg").onchange=async e=>{
+  const f=e.target.files[0];e.target.value="";if(!f)return;
+  msg("Membaca gambar...");
+  try{
+    const sample=CL&&CL.use?await CL.use("sample"):null;
+    if(!sample){msg("Fitur baca gambar tidak tersedia di tampilan ini. Gunakan Excel/CSV atau ketik manual.",1);return}
+    let blob=f;
+    try{const u=URL.createObjectURL(f),im=await new Promise((ok,no)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=no;i.src=u}),s=Math.min(1,1800/Math.max(im.naturalWidth,im.naturalHeight)),c=document.createElement("canvas");c.width=Math.round(im.naturalWidth*s);c.height=Math.round(im.naturalHeight*s);c.getContext("2d").drawImage(im,0,0,c.width,c.height);URL.revokeObjectURL(u);blob=await new Promise(r=>c.toBlob(r,"image/jpeg",0.92))||f}catch(x){blob=f}
+    if(sample.limits){try{const l=await sample.limits();if(l&&!l.images){msg("Pembacaan gambar tidak tersedia di tampilan ini. Pakai Excel/CSV atau tempel dari spreadsheet.",1);return}}catch(x){}}
+    const q="Gambar ini adalah tabel koordinat titik survei (kolom nama titik, X/E, Y/N). Baca semua baris data. Jawab HANYA dengan JSON array berisi objek {\"n\":nama titik,\"x\":\"angka X\",\"y\":\"angka Y\",\"z\":\"angka Z atau elevasi jika ada kolomnya, jika tidak ada isi string kosong\"}. Salin angka PERSIS seperti tertulis dengan semua digit; jika pemisah desimal berupa koma, ubah menjadi titik. Abaikan header dan nomor baris. Jangan menebak angka yang tidak terbaca, isi dengan string kosong.";
+    const data=await sample.json(q,{images:[blob],cache:false});
+    const nr=(Array.isArray(data)?data:[]).map(d=>({n:String(d.n||""),x:String(d.x??""),y:String(d.y??""),z:isFinite(num(d.z??""))?String(d.z):"",t:detType(d.n||"")})).filter(r=>r.n||r.x||r.y);
+    setRows(nr,"gambar");
+  }catch(err){
+    msg(err&&err.code==="not_granted"?"Izin membaca gambar ditolak.":"Gagal membaca gambar ("+((err&&(err.code||err.message))||"error")+"). Coba lagi atau ketik manual.",1);
+  }
+};
+// upload Excel / CSV
+
+function loadXLSX(){return new Promise((ok,no)=>{if(window.XLSX)return ok();const s=document.createElement("script");s.src="xlsx.full.min.js";s.onload=ok;s.onerror=()=>{const t=document.createElement("script");t.src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";t.onload=ok;t.onerror=()=>no(new Error("xlsx"));document.head.appendChild(t)};document.head.appendChild(s)})}
+$("ffile").onchange=async e=>{
+  const f=e.target.files[0];e.target.value="";if(!f)return;
+  msg("Membaca file...");
+  try{
+    if(/\.(csv|tsv|txt)$/i.test(f.name)){setRows(parseText(await f.text()),f.name);return}
+    await loadXLSX();
+    const wb=XLSX.read(await f.arrayBuffer(),{type:"array"}),ws=wb.Sheets[wb.SheetNames[0]];
+    const out=[];
+    XLSX.utils.sheet_to_json(ws,{header:1,raw:true}).forEach(r=>{
+      const nums=r.filter(v=>v!==""&&v!=null&&isFinite(num(v))),strs=r.filter(v=>typeof v==="string"&&v.trim()&&!isFinite(num(v)));
+      if(nums.length<2)return;
+      const n=(strs[0]||"Titik "+(out.length+1)).trim();
+      out.push({n,x:String(nums[0]),y:String(nums[1]),z:nums.length>2?String(nums[2]):"",t:detType(n)})});
+    setRows(out,f.name);
+  }catch(err){msg("Gagal membaca file ("+((err&&(err.message||err.code))||"error")+"). Coba simpan sebagai CSV, atau tempel isinya.",1)}
+};
+
+// ---------- jenis titik ----------
+const mkEl=(tag,att,par)=>{const e=document.createElement(tag);Object.assign(e,att||{});if(par)par.appendChild(e);return e};
+const SHAPES=[["ring","Lingkaran"],["filled","Bulat penuh"],["tree","Pohon"],["square","Kotak"],["triangle","Segitiga"],["cross","Silang"]];
+const PAL=["#e08a00","#8e44ad","#00897b","#c2185b","#6d4c41","#546e7a","#f4511e","#7cb342"];
+function renderTypes(){
+  ensureIds();const L=$("tlist");L.innerHTML="";
+  const at=$("at"),av=at.value;at.innerHTML="";mkEl("option",{value:"",textContent:"Jenis titik baru: otomatis dari nama"},at);
+  types.forEach((t,i)=>{
+    mkEl("option",{value:t.id,textContent:"Jenis titik baru: "+t.name},at);
+    const d=mkEl("div",{className:"ty"},L),r1=mkEl("div",{className:"r"},d),r2=mkEl("div",{className:"r"},d);
+    const c=mkEl("input",{type:"color",value:t.color},r1);c.oninput=()=>{t.color=c.value;chg()};
+    const nI=mkEl("input",{type:"text",value:t.name,placeholder:"Nama jenis"},r1);nI.style.flex="1";nI.style.minWidth="90px";
+    nI.oninput=()=>{t.name=nI.value;[...at.options].forEach((o,j)=>{if(j===i+1)o.textContent="Jenis titik baru: "+t.name});renderList();chg()};
+    const sh=mkEl("select",{},r1);SHAPES.forEach(q=>mkEl("option",{value:q[0],textContent:q[1]},sh));sh.value=t.shape;sh.onchange=()=>{t.shape=sh.value;chg()};
+    const sz=mkEl("input",{type:"number",value:t.sz,step:"0.1",min:"0.3",max:"4",title:"Ukuran"},r1);sz.style.width="56px";sz.oninput=()=>{t.sz=Math.min(4,Math.max(0.3,+sz.value||1));chg()};
+    const del=mkEl("button",{textContent:"×",title:"Hapus jenis",disabled:types.length<2},r1);
+    del.onclick=()=>{types.splice(i,1);rows.forEach(r=>{if(r.t===t.id)r.t=dfl().id});renderTypes();renderList();chg()};
+    const pr=mkEl("input",{type:"text",value:t.pre||"",placeholder:"Awalan nama, pisah koma"},r2);pr.style.flex="1";pr.style.minWidth="110px";pr.oninput=()=>{t.pre=pr.value;save();hsched()};
+    [["Sambung","connect"],["Tutup","closed"],["Kontrol","ctl"]].forEach(q=>{const l=mkEl("label",{},r2),k=mkEl("input",{type:"checkbox",checked:!!t[q[1]]},l);l.append(q[0]);k.onchange=()=>{t[q[1]]=k.checked;chg();if(q[1]==="connect")renderTypes()}});
+    if(t.connect){
+      const r3=mkEl("div",{className:"r"},d);
+      mkEl("span",{className:"h",textContent:"Urutan sambung:"},r3);
+      const od=mkEl("select",{},r3);
+      [["data","Urutan data"],["nama","Nama (A-Z, angka berurut)"],["x","X kecil ke besar"],["y","Y kecil ke besar"],["dekat","Terdekat berurutan"],["manual","Atur manual"]].forEach(q=>mkEl("option",{value:q[0],textContent:q[1]},od));
+      od.value=t.order||"data";od.onchange=()=>{t.order=od.value;renderTypes();chg()};
+      const rv=mkEl("label",{},r3),rc=mkEl("input",{type:"checkbox",checked:!!t.rev},rv);rv.append("Balik arah");rc.onchange=()=>{t.rev=rc.checked;chg()};
+      if((t.order||"data")==="manual"){
+        const ed=mkEl("div",{},d);ed.style.cssText="display:flex;flex-direction:column;gap:4px";
+        const list=manualList(t);
+        list.forEach((r,j)=>{
+          const w=mkEl("div",{className:"ln"},ed);w.style.gridTemplateColumns="28px 1fr 34px 34px";
+          mkEl("span",{textContent:(j+1)+"."},w);mkEl("span",{textContent:r.n||"?"},w);
+          const up=mkEl("button",{textContent:"▲",disabled:j===0},w),dn=mkEl("button",{textContent:"▼",disabled:j===list.length-1},w);
+          const mv=dl=>{const ids=list.map(x=>x.id),k=j+dl;[ids[j],ids[k]]=[ids[k],ids[j]];t.seq=ids;renderTypes();chg()};
+          up.onclick=()=>mv(-1);dn.onclick=()=>mv(1)});
+        mkEl("span",{className:"h",textContent:list.length?"Nomor urutan juga tampil di peta.":"Belum ada titik berjenis ini."},ed);
+      }
+    }
+  });
+  if([...at.options].some(o=>o.value===av))at.value=av;
+}
+$("tadd").onclick=()=>{types.push({id:uid(),name:"Jenis "+(types.length+1),color:PAL[(types.length-3+PAL.length*4)%PAL.length],shape:"filled",sz:1,pre:"",connect:false,closed:false,ctl:false});renderTypes();renderList();chg()};
+$("tre").onclick=()=>{let n=0;rows.forEach(r=>{const m=matchType(r.n);if(m&&r.t!==m.id){r.t=m.id;n++}});renderList();chg();msg(n+" titik diubah jenisnya sesuai awalan nama.")};
+
+// ---------- garis hubung ----------
+const nm=id=>{const r=rows.find(r=>r.id===id);return r?(r.n||"?"):"?"};
+function fillSel(){
+  const sl=$("lsel");if(document.activeElement===sl)return;
+  const v=sl.value;sl.innerHTML="";
+  rows.forEach(r=>{const o=document.createElement("option");o.value=r.id||"";o.textContent=r.n||"(tanpa nama)";sl.appendChild(o)});
+  if(v)sl.value=v;
+}
+function uiLine(){
+  const on=!!cur;
+  $("lnew").textContent=on?"Simpan garis"+(cur.pts.length?" ("+cur.pts.length+" titik)":""):"Mulai sambung titik";
+  $("lnew").classList.toggle("on",on);$("lcancel").hidden=!on;$("lpick").hidden=!on;
+  $("lhint").textContent=on?(cur.pts.length?cur.pts.map(nm).join(" → "):"Ketuk titik di peta berurutan, atau pilih dari daftar lalu tekan “+ Titik”."):"Tekan “Mulai sambung titik”, lalu pilih titik berurutan di peta atau dari daftar. Pilih warna sebelum menyimpan.";
+}
+function renderLines(){
+  const L=$("llist");L.innerHTML="";
+  lines.forEach((l,i)=>{
+    const d=document.createElement("div");d.className="ln";
+    const lb=()=>l.pts.map(nm).join(" → ")+(l.closed?" ⟲":"");
+    const c=document.createElement("input");c.type="color";c.value=l.color||"#e0301e";c.oninput=()=>{l.color=c.value;chg()};
+    const t=document.createElement("span");t.textContent=lb();
+    const lab=document.createElement("label"),cb=document.createElement("input");cb.type="checkbox";cb.checked=!!l.closed;
+    cb.onchange=()=>{l.closed=cb.checked&&l.pts.length>2;cb.checked=l.closed;t.textContent=lb();chg()};lab.append(cb,"tutup");
+    const del=document.createElement("button");del.textContent="×";del.onclick=()=>{lines.splice(i,1);renderLines();chg()};
+    d.append(c,t,lab,del);L.appendChild(d)});
+}
+function addCur(id){if(!cur||!id||cur.pts[cur.pts.length-1]===id)return;cur.pts.push(id);uiLine();draw()}
+$("lnew").onclick=()=>{
+  if(!cur){cur={pts:[]};if(step<5)step=5;uiLine();chg();return}
+  if(cur.pts.length<2){$("lhint").textContent="Pilih minimal 2 titik dulu.";return}
+  lines.push({id:uid(),pts:cur.pts.slice(),color:$("lcol").value,closed:$("lclose").checked&&cur.pts.length>2});
+  cur=null;uiLine();renderLines();chg();
+};
+$("lcancel").onclick=()=>{cur=null;uiLine();draw()};
+$("ladd").onclick=()=>{const sl=$("lsel");if(!cur||!sl.value)return;addCur(sl.value);if(sl.selectedIndex<sl.options.length-1)sl.selectedIndex++};
+$("lback").onclick=()=>{if(cur&&cur.pts.length){cur.pts.pop();uiLine();draw()}};
+["input","change"].forEach(ev=>["lcol","lclose"].forEach(id=>$(id).addEventListener(ev,()=>{if(cur)draw()})));
+["input","change"].forEach(ev=>["cont","ci","cx","ccol","csm","cmax","zlab"].forEach(id=>$(id).addEventListener(ev,chg)));
+$("undo").onclick=undo;$("redo").onclick=redo;
+document.addEventListener("keydown",e=>{
+  const t=e.target&&e.target.tagName;if(t==="INPUT"||t==="TEXTAREA"||t==="SELECT")return;
+  if((e.ctrlKey||e.metaKey)&&!e.altKey){const k=e.key.toLowerCase();if(k==="z"){e.preventDefault();e.shiftKey?redo():undo()}else if(k==="y"){e.preventDefault();redo()}}
+});
+
+// ---------- pan & zoom (vektor, tetap tajam) ----------
+const wrap=$("wrap"),svg=$("s");let V={x:0,y:0,w:PW};
+function setV(){const r=wrap.getBoundingClientRect();if(!r.width||!r.height)return;svg.setAttribute("viewBox",`${V.x} ${V.y} ${V.w} ${V.w*r.height/r.width}`)}
+function fit(){const r=wrap.getBoundingClientRect();const a=r.width/r.height;const w=Math.max(PW*1.04,PH*1.04*a);V.w=w;V.x=(PW-w)/2;V.y=PH/2-(w/a)/2;setV()}
+function zoomAt(sx,sy,f){const r=wrap.getBoundingClientRect();const wx=V.x+sx/r.width*V.w,wy=V.y+sy/r.width*V.w;const nw=Math.min(3000,Math.max(15,V.w*f));f=nw/V.w;V.x=wx-(wx-V.x)*f;V.y=wy-(wy-V.y)*f;V.w=nw;setV()}
+wrap.addEventListener("wheel",e=>{e.preventDefault();const r=wrap.getBoundingClientRect();zoomAt(e.clientX-r.left,e.clientY-r.top,Math.exp(e.deltaY*0.0015))},{passive:false});
+const PT=new Map();let last=null,tapS=null;
+wrap.addEventListener("pointerdown",e=>{tapS=PT.size===0?{x:e.clientX,y:e.clientY}:null;wrap.setPointerCapture(e.pointerId);PT.set(e.pointerId,[e.clientX,e.clientY]);last=null});
+wrap.addEventListener("pointermove",e=>{if(!PT.has(e.pointerId))return;const r=wrap.getBoundingClientRect();const old=[...PT.values()];PT.set(e.pointerId,[e.clientX,e.clientY]);const cur=[...PT.values()];
+  if(cur.length===1){V.x-=(e.clientX-old[0][0])/r.width*V.w;V.y-=(e.clientY-old[0][1])/r.width*V.w;setV()}
+  else if(cur.length===2){const d=Math.hypot(cur[0][0]-cur[1][0],cur[0][1]-cur[1][1]);const mx=(cur[0][0]+cur[1][0])/2-r.left,my=(cur[0][1]+cur[1][1])/2-r.top;if(last)zoomAt(mx,my,last/d);last=d}});
+function onTap(e){
+  if(!cur)return;const r=wrap.getBoundingClientRect(),wx=V.x+(e.clientX-r.left)/r.width*V.w,wy=V.y+(e.clientY-r.top)/r.width*V.w;
+  let b=null,bd=16/r.width*V.w;lastPos.forEach(p=>{const d=Math.hypot(p.x-wx,p.y-wy);if(d<bd){bd=d;b=p}});if(b)addCur(b.id);
+}
+const up=e=>{if(e.type==="pointerup"&&tapS&&PT.size===1&&Math.hypot(e.clientX-tapS.x,e.clientY-tapS.y)<8)onTap(e);tapS=null;PT.delete(e.pointerId);last=null};
+wrap.addEventListener("pointerup",up);wrap.addEventListener("pointercancel",up);
+$("fit").onclick=fit;
+if(window.ResizeObserver)new ResizeObserver(setV).observe(wrap);else window.addEventListener("resize",setV);
+// ---------- simpan file: PDF, foto, HTML interaktif ----------
+const xs=t=>{$("xm").textContent=t};
+$("xbtn").onclick=()=>{const r=$("xrow");r.hidden=!r.hidden;$("xbtn").classList.toggle("on",!r.hidden)};
+const stamp=()=>"plotting-kkh-tahap"+step;
+async function dl(name,data){
+  try{
+    const cap=window.Capacitor;
+    if(cap&&cap.isNativePlatform&&cap.isNativePlatform()&&cap.Plugins&&cap.Plugins.Filesystem){
+      const blob=data instanceof Blob?data:new Blob([data]);
+      const b64=await new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(String(r.result).split(",")[1]);r.onerror=no;r.readAsDataURL(blob)});
+      const w=await cap.Plugins.Filesystem.writeFile({path:name,data:b64,directory:"CACHE"});
+      await cap.Plugins.Share.share({title:name,url:w.uri,dialogTitle:"Simpan / bagikan "+name});
+      xs("Siap: "+name);return;
+    }
+    const d=CL&&CL.use?await CL.use("downloads"):null;
+    if(d){await d.save({filename:name,data});xs("Tersimpan: "+name);return}
+    if(CL&&CL.use){xs("Simpan file tidak tersedia di tampilan ini. Buka link artifact langsung di claude.ai (bukan pratinjau).");return}
+    const b=data instanceof Blob?data:new Blob([data]),a=document.createElement("a");
+    a.href=URL.createObjectURL(b);a.download=name;document.body.appendChild(a);a.click();a.remove();xs("Diunduh: "+name);
+  }catch(e){xs(e&&e.code==="declined"?"Dibatalkan.":"Gagal menyimpan ("+((e&&(e.code||e.message))||"error")+")")}
+}
+const hex=c=>{c=c.replace("#","");if(c.length===3)c=c.replace(/./g,m=>m+m);return[0,2,4].map(i=>(parseInt(c.substr(i,2),16)/255).toFixed(3)).join(" ")};
+const f3=v=>(+v).toFixed(3);
+function pdfContent(inner){
+  const doc=new DOMParser().parseFromString('<svg xmlns="http://www.w3.org/2000/svg">'+inner+'</svg>',"image/svg+xml");
+  const sc=72/25.4;let o=`q ${sc.toFixed(5)} 0 0 -${sc.toFixed(5)} 0 ${(PH*sc).toFixed(2)} cm\n`;
+  const paint=el=>{const f=el.getAttribute("fill")||"none",s=el.getAttribute("stroke")||"none";let p="";
+    if(f!=="none")p+=hex(f)+" rg\n";
+    if(s!=="none")p+=hex(s)+" RG\n"+f3(el.getAttribute("stroke-width")||1)+" w\n";
+    return[p,f!=="none"&&s!=="none"?"B":f!=="none"?"f":s!=="none"?"S":"n"]};
+  for(const el of doc.documentElement.children){
+    const t=el.tagName,A=n=>+el.getAttribute(n);
+    if(t==="rect"){const[p,op]=paint(el);o+=`${p}${f3(A("x"))} ${f3(A("y"))} ${f3(A("width"))} ${f3(A("height"))} re ${op}\n`}
+    else if(t==="circle"){const[p,op]=paint(el),x=A("cx"),y=A("cy"),r=A("r"),k=0.5523*r;
+      o+=`${p}${f3(x+r)} ${f3(y)} m ${f3(x+r)} ${f3(y+k)} ${f3(x+k)} ${f3(y+r)} ${f3(x)} ${f3(y+r)} c ${f3(x-k)} ${f3(y+r)} ${f3(x-r)} ${f3(y+k)} ${f3(x-r)} ${f3(y)} c ${f3(x-r)} ${f3(y-k)} ${f3(x-k)} ${f3(y-r)} ${f3(x)} ${f3(y-r)} c ${f3(x+k)} ${f3(y-r)} ${f3(x+r)} ${f3(y-k)} ${f3(x+r)} ${f3(y)} c ${op}\n`}
+    else if(t==="path"){const[p,op]=paint(el);let d="",cx=0,cy=0,sx=0,sy=0;const L=(a,b)=>{cx=a;cy=b;d+=`${f3(a)} ${f3(b)} l\n`};
+      (el.getAttribute("d").match(/[MmHhVvLlZz][^MmHhVvLlZz]*/g)||[]).forEach(seg=>{const c=seg[0],n=(seg.slice(1).match(/-?\d*\.?\d+(?:e-?\d+)?/gi)||[]).map(Number);
+        if(c==="M"){cx=sx=n[0];cy=sy=n[1];d+=`${f3(cx)} ${f3(cy)} m\n`;for(let i=2;i<n.length;i+=2)L(n[i],n[i+1])}
+        else if(c==="L"){for(let i=0;i<n.length;i+=2)L(n[i],n[i+1])}
+        else if(c==="h")L(cx+n[0],cy);else if(c==="v")L(cx,cy+n[0]);
+        else if(c==="H")L(n[0],cy);else if(c==="V")L(cx,n[0]);
+        else if(c==="Z"||c==="z"){d+="h\n";cx=sx;cy=sy}});
+      o+=p+d+op+"\n"}
+    else if(t==="text"){const fs=A("font-size"),txt=el.textContent.replace(/[^\x20-\xFF]/g,"?");
+      let ang=0;const tr=el.getAttribute("transform"),m=tr&&tr.match(/rotate\((-?[\d.]+)/);if(m)ang=+m[1]*Math.PI/180;
+      const c=Math.round(Math.cos(ang)*1e4)/1e4,s=Math.round(Math.sin(ang)*1e4)/1e4;
+      let w=0;if(el.getAttribute("text-anchor")==="end")w=[...txt].reduce((a,ch)=>a+(/[.,]/.test(ch)?0.278:0.556),0)*fs;
+      o+=`${hex(el.getAttribute("fill")||"#000")} rg\nBT /F1 ${f3(fs)} Tf ${c} ${s} ${s} ${-c} ${f3(A("x")-w*c)} ${f3(A("y")-w*s)} Tm (${txt.replace(/([\\()])/g,"\\$1")}) Tj ET\n`}
+  }
+  return o+"Q";
+}
+function makePDF(content){
+  const W=(PW*72/25.4).toFixed(2),H=(PH*72/25.4).toFixed(2);
+  const objs=["<< /Type /Catalog /Pages 2 0 R >>","<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>`,
+    `<< /Length ${content.length} >>\nstream\n${content}\nendstream`,
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"];
+  let out="%PDF-1.4\n";const off=[];
+  objs.forEach((b,i)=>{off.push(out.length);out+=`${i+1} 0 obj\n${b}\nendobj\n`});
+  const x=out.length;
+  out+="xref\n0 6\n0000000000 65535 f \n"+off.map(o=>String(o).padStart(10,"0")+" 00000 n \n").join("")+`trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${x}\n%%EOF`;
+  const u=new Uint8Array(out.length);for(let i=0;i<out.length;i++)u[i]=out.charCodeAt(i)&255;return u;
+}
+$("xpdf").onclick=()=>{xs("Menyiapkan PDF...");try{dl(stamp()+".pdf",makePDF(pdfContent(draw(1))))}catch(e){xs("Gagal membuat PDF.")}};
+async function makePNG(n){
+  const W=4000,H=Math.round(W*PH/PW),k=$("boost").checked?4:1,keep=step;
+  step=n;let inner;try{inner=draw(k)}finally{step=keep}
+  const s=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${PW} ${PH}" width="${W}" height="${H}" font-family="Helvetica, Arial, sans-serif">`+inner+"</svg>";
+  const u=URL.createObjectURL(new Blob([s],{type:"image/svg+xml"}));
+  const im=await new Promise((ok,no)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=no;i.src=u});
+  const c=document.createElement("canvas");c.width=W;c.height=H;const g=c.getContext("2d");
+  g.fillStyle="#fff";g.fillRect(0,0,W,H);g.drawImage(im,0,0,W,H);URL.revokeObjectURL(u);
+  return new Promise(r=>c.toBlob(r,"image/png"));
+}
+async function savePNG(n){
+  xs("Menyiapkan foto tahap "+n+"...");
+  try{await dl("plotting-kkh-tahap"+n+".png",await makePNG(n))}catch(e){xs("Gagal membuat foto.")}
+}
+$("xpng").onclick=()=>savePNG(step);
+[1,2,3,4,5].forEach(n=>{$("xp"+n).onclick=()=>savePNG(n)});
+$("xpall").onclick=async()=>{for(const n of[1,2,3,4,5]){await savePNG(n);await new Promise(r=>setTimeout(r,400))}xs("Foto tahap 1-5 selesai disimpan.")};
+$("xhtml").onclick=()=>{
+  try{
+    const q=s=>document.querySelector(s).cloneNode(true),bar=q(".bar"),wrap=q("#wrap"),panel=q("#panel");
+    [[bar,"#steps"],[bar,"#info"],[bar,"#sv"],[bar,"#xm"],[wrap,"#g"],[panel,"#list"],[panel,"#msg"],[panel,"#llist"],[panel,"#lsel"],[panel,"#lhint"],[panel,"#tlist"],[panel,"#at"]].forEach(([r,s])=>{const e=r.querySelector(s);if(e)e.innerHTML=""});
+    bar.querySelector("#xrow").hidden=true;panel.hidden=true;wrap.querySelector("svg").removeAttribute("viewBox");
+    [bar,panel].forEach(r=>r.querySelectorAll(".on").forEach(e=>e.classList.remove("on")));
+    const init=JSON.stringify(curP()).replace(/</g,"\\u003c");
+    const html=`<!DOCTYPE html>\n<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Plotting Koordinat ke Grid</title><style>${document.querySelector("style").textContent}</style></head><body>${bar.outerHTML}${wrap.outerHTML}${panel.outerHTML}<script>window.__INIT=${init}<\/script><script id="app">${document.getElementById("app").textContent}<\/script></body></html>`;
+    dl(stamp()+".html",html);
+  }catch(e){xs("Gagal membuat file HTML.")}
+};
+// ---------- ekspor data: koordinat saja & proyek lengkap ----------
+const csvq=v=>{v=String(v==null?"":v);return /[",\n;]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
+const nrm=s=>{const v=num(s);return isFinite(v)?String(v):String(s==null?"":s)};
+$("xcsv").onclick=()=>{
+  try{
+    const L=["Nama,X,Y,Z,Jenis"];
+    rows.forEach(r=>L.push([r.n,nrm(r.x),nrm(r.y),nrm(r.z),tf(r.t).name].map(csvq).join(",")));
+    dl("koordinat-kkh.csv","\uFEFF"+L.join("\r\n")+"\r\n");
+    xs(rows.length+" titik diekspor sebagai CSV.");
+  }catch(e){xs("Gagal membuat CSV.")}
+};
+$("xjson").onclick=()=>{
+  try{
+    const o=Object.assign({app:"plotting-koordinat-ke-grid",ver:1,exported:new Date().toISOString()},curP());
+    dl("proyek-kkh.json",JSON.stringify(o,null,1));
+    xs("Proyek lengkap (titik, jenis, garis, kontur, pengaturan) diekspor.");
+  }catch(e){xs("Gagal membuat JSON.")}
+};
+$("fjson").onchange=async e=>{
+  const f=e.target.files[0];e.target.value="";if(!f)return;
+  try{
+    const p=JSON.parse(await f.text());
+    if(!p||typeof p.rows!=="string"||!Array.isArray(JSON.parse(p.rows)))throw 0;
+    hcommit();applyP(p);ensureIds();selD.clear();renderList();syncUI();draw();fit();save();hcommit();
+    xs("Proyek dibuka: "+rows.length+" titik.");
+  }catch(x){xs("File bukan proyek yang valid.")}
+};
+renderTypes();uiLine();renderLines();draw();fit();hreset();sv(p0?"Tersimpan di perangkat":"");
+</script>
+<script>if("serviceWorker"in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));</script>
+</body>
+</html>
